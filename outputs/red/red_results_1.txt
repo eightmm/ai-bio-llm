@@ -1,0 +1,124 @@
+**Critical Evaluation of the Manuscript “Integrative Quantification of Functional Similarity among T‑cell Genes and Identification of Core Regulators of Naïve/Memory T‑cell Quiescence”**
+
+---
+
+### 1. Alignment with the Scientific Question  
+
+| Requirement (from question) | Manuscript Status | Remarks |
+|------------------------------|-------------------|---------|
+| (1) LLM‑based gene‑function summary | **Satisfied** (Sec 2.2) | Summaries were generated but validation was limited to 10 % sample. |
+| (2) LLM‑based phylogenic tree (knowledge‑based) | **Satisfied** (Sec 2.3) | Tree generated via LLM prompts; phylogenetic distance calculation is simplistic and unvalidated. |
+| (3) Expression‑based similarity score | **Satisfied** (Sec 2.4) | Pearson correlations used; mapping to [0,1] may distort the tail; no cross‑validation. |
+| (4) Integration of (1–3) → Similarity Score; identification of key gene pairs | **Satisfied** (Sec 2.5–2.7) | FS defined; threshold 0.85 arbitrary; no comparison to null distribution. |
+| (5) For top‑expressed 300 genes, build protein‑structure similarity score, propose regulator pairs | **Satisfied** (Sec 2.8, 3.7) | Structural similarity alone used; rationale for focusing on top‑expressed genes not justified.|
+
+**Conclusion**: While the manuscript attempts to meet every listed requirement, several steps lack rigorous justification or validation, limiting the direct relevance to the original scientific question.
+
+---
+
+### 2. Evidence Support
+
+| Claim | Evidence Provided | Adequacy |
+|-------|-------------------|----------|
+| **LLM summaries are accurate** | 10 % random sampling, 92 % precision | Incomplete. A single 92 % precision on a small, non‑systematic sample does not guarantee overall fidelity. |
+| **PhyloSim captures evolutionary relatedness** | Δ_taxa + Δ_orthog formula; example pairs | Formula is ad‑hoc; no benchmark against curated phylogenetic trees or distance metrics. |
+| **ExprSim reflects co‑expression** | Pearson coefficients across 12 conditions; transformation | Pearson may be inflated by batch effects; transformation choice is arbitrary. |
+| **StructSim is meaningful** | Foldseek RMSD + domain overlap; 10 Å cap | No literature precedent for such a composite metric; threshold choice is unexplained. |
+| **FS threshold (0.85) separates true regulators** | Top 10 pairs matched to literature | No statistical test (e.g., permutation analysis) shows that FS>0.85 is significantly enriched for known regulators. |
+| **Structural pairs for top 300 genes are regulatory** | StructSim>0.9 pairs listed | No co‑expression or functional assay evidence; co‑structural similarity alone does not imply regulatory coupling. |
+
+**Conclusion**: The manuscript contains many claims that are superficially supported, yet rigorous quantitative validation is largely absent.
+
+---
+
+### 3. Logical Consistency
+
+| Issue | Location | Implication |
+|-------|----------|-------------|
+| **Circularity of functional evidence** | Sec 2.2 (LLM summaries) & Table 1 | LLM-derived summaries may already embed known functional links (e.g., “Tcf7–Lef1” co‑activation), which are then used to support high FS; this inflates perceived evidence. |
+| **Orthogonality of metrics** | Sec 2.5 | PhyloSim, ExprSim, StructSim are not truly independent; evolutionary relatedness often predicts structural similarity and sometimes expression pattern.  Combining them via Fisher’s method may overweight overlapping signals. |
+| **Threshold arbitrariness** | Sec 2.7 | No justification for 0.85 FS threshold; may exclude biologically relevant pairs with FS slightly below. |
+| **Exclusion of cell‑state specificity** | Throughout | All pairwise similarities are computed across all 12 conditions, ignoring that quiescence‑specific patterns might differ from activated patterns. |
+
+**Conclusion**: Logical gaps arise from overlapping data dimensions, uncontrolled bias, and lack of threshold calibration.
+
+---
+
+### 4. Methodological Transparency
+
+| Question | Current Answer | Gaps |
+|----------|----------------|------|
+| **LLM prompt details** | Brief description (Sec 2.2) | Exact prompt wording, token limits, temperature settings, and sampling strategy absent. |
+| **PhyloSim derivation** | LLM-generated taxonomy *then* simplified | No verification of LLM correctness; no cross‑checking against curated orthology databases. |
+| **Batch‑effect correction** | ComBat‑seq (Sec 2.1) | No diagnostic plots or batch‑effect residual statistics reported. |
+| **Statistical assumptions** | Fisher’s method on p‑values derived from z‑scores | Assumes independence among three similarity metrics; violated. |
+| **Clipping & thresholding in StructSim** | RMSD capped at 10 Å, product clipped | Rationale for 10 Å cut‑off not provided; how many pairs affected? |
+| **AlphaFold coverage** | “All proteins retrieved” | No indication of missing predictions (e.g., disordered proteins) or how such gaps were handled. |
+
+**Conclusion**: Key methodological steps are described in loose, non‑reproducible terms, reducing transparency.
+
+---
+
+### 5. Interpretation Discipline
+
+| Claim | Potential Overstatement | Suggested Correction |
+|-------|------------------------|----------------------|
+| **“High concordance between FS rankings and established quiescence regulators validates the model.”** | No statistical test of enrichment | Provide enrichment p‑values, ROC curves, or permutation analysis. |
+| **“Structural coupling without co‑expression implies functional cooperativity.”** | No evidence beyond structural similarity | Add network‑analysis evidence or propose follow‑up experimental validation. |
+| **“FS captures functional concordance across all three dimensions.”** | Not validated against an external gold standard | Benchmark against curated T‑cell regulatory complexes or protein–protein interaction databases. |
+
+**Conclusion**: Several interpretations exceed the evidence level presented, potentially over‑generalizing the FS’s predictive power.
+
+---
+
+### 6. Missing or Unaddressed Considerations
+
+1. **Cell‑type‑specificity**: The FS is computed across all 12 T‑cell subsets, likely confounded by condition‑dependent expression. A separate FS for quiescent subsets would be more relevant to the question.
+
+2. **Statistical Controls**: No permutation or bootstrapping to estimate the null distribution of FS; hence the chosen top‑1 % threshold lacks empirical support.
+
+3. **Alternative Similarity Measures**: The report relies exclusively on Pearson correlation for expression; Spearman or mutual‑information measures might capture non‑linear relationships.
+
+4. **Data Completeness**: Potential missing genes in AlphaFold or InterProScan not addressed; how were incomplete structural data treated?
+
+5. **Interpretation of 300 Gene Structural Analysis**: Focusing exclusively on highly expressed genes ignores low‑expression regulators that may be critical for quiescence. No justification for this cutoff is given.
+
+---
+
+### 7. Potential Biases
+
+| Source | Manifestation | Impact |
+|--------|---------------|--------|
+| **LLM training data** | Bias toward highly cited genes | Over‐representation of well‑studied genes in summaries and consequent FS inflation. |
+| **Phylogeny through LLM** | Homology predictions may be inaccurate for poorly annotated genes | Misestimation of phylogenetic similarity introduces noise. |
+| **Batch correction** | Unverified residual batch effects | Correlation values may reflect batch artifacts rather than biology. |
+| **Structural alignment threshold** | 10 Å cut‑off arbitrary | Many biologically relevant differences may be discarded or misclassified. |
+
+---
+
+### 8. Actionable Recommendations (without rewriting)
+
+1. **Validate LLM Summaries Systematically**: Expand the manual validation to a stratified random sample covering all summary length ranges; report precision, recall, and inter‑annotator agreement.
+
+2. **Benchmark PhyloSim**: Compare the LLM‑derived taxonomy against a curated orthology database (e.g., OrthoDB) to quantify accuracy and adjust Δ_taxa/Δ_orthog calculation accordingly.
+
+3. **Assess Metric Independence**: Compute pairwise correlations among PhyloSim, ExprSim, and StructSim. If substantial overlap exists, consider dimensional reduction (e.g., PCA) before Fisher’s combination.
+
+4. **Justify FS Threshold**: Perform permutation tests generating random gene lists, compute FS for each, and derive an empirical p‑value for the 0.85 cutoff. Alternatively, plot FS distribution against known regulator enrichment to pick a data‑driven threshold.
+
+5. **Include Cell‑State‑Specific FS**: Recalculate FS using only quiescent (naïve/memory) conditions to isolate quiescence‑specific functional similarity.
+
+6. **Transparent Reporting of AlphaFold Coverage**: Provide a table indicating the proportion of genes for which high‑confidence AlphaFold models exist and describe how missing entries were handled.
+
+7. **Clarify Structural Similarity Thresholds**: Explain the choice of the 10 Å RMSD cap (e.g., based on prior literature on domain‑level structural tolerance) and report how many pairs fall above this threshold.
+
+8. **Supplement Top Structural Pairs with Co‑expression Data**: Even if co‑expression is weak, mention the trend if any and discuss whether structural similarity might compensate for expression variance.
+
+9. **Add Enrichment Curves**: Compute and display enrichment curves (e.g., precision‑recall) for known quiescence regulators to support the claim that FS is predictive.
+
+10. **Discuss Limitation of LLM Predictions**: Explicitly acknowledge that LLM‑generated summaries can propagate literature bias and that domain‑expert curation remains essential.
+
+---
+
+**Overall Assessment**  
+The manuscript provides an ambitious multifactorial framework to estimate functional similarity among T‑cell genes, integrating LLM summaries, phylogenetics, expression, and protein structure. Nevertheless, the study lacks several critical validations, contains methodological ambiguities, and may over‑interpret the assembled similarity scores. Addressing the points above would strengthen the manuscript’s scientific rigor and alignment with the stated research objectives.
