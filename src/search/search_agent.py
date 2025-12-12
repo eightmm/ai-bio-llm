@@ -1,36 +1,42 @@
-from pathlib import Path
+import os
 import json
 import time
 import argparse
 from typing import Optional
+from dotenv import load_dotenv
 
+load_dotenv()
+
+import sys
+from pathlib import Path
+
+# Add project root to sys.path
+if __name__ == "__main__":
+    sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
+
+from src.config import Config
 from openai import OpenAI
-
-MAX_RETRIES = 5
-RETRY_BACKOFF = 2
-READ_TIMEOUT = 120
-
 
 class SearchAgent:
 
     def __init__(
         self,
-        api_key: str,
-        base_url: str = "https://openrouter.ai/api/v1",
-        model: str = "openai/gpt-oss-20b:free",
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        model: Optional[str] = None,
     ):
-        if not api_key:
-            raise ValueError("api_key must be provided.")
+        self.api_key = api_key or Config.API_KEY
+        if not self.api_key:
+            raise ValueError("api_key must be provided or set in OPENROUTER_API_KEY environment variable.")
+            
+        self.base_url = base_url or Config.BASE_URL
+        self.model = model or Config.MODEL_SEARCH
 
-        self.api_key = api_key
-        self.base_url = base_url
-        self.model = model
-
-        # 클라이언트 생성
+        # Initialize Client
         self.client = OpenAI(
             base_url=self.base_url,
             api_key=self.api_key,
-            timeout=READ_TIMEOUT,
+            timeout=Config.TIMEOUT,
         )
 
 
@@ -69,7 +75,7 @@ class SearchAgent:
 
         last_err: Optional[Exception] = None
 
-        for attempt in range(1, MAX_RETRIES + 1):
+        for attempt in range(1, Config.MAX_RETRIES + 1):
             try:
                 print(f"[LLM] Request attempt={attempt}, model={self.model}", flush=True)
 
@@ -86,7 +92,7 @@ class SearchAgent:
 
             except Exception as e:
                 last_err = e
-                wait = RETRY_BACKOFF ** (attempt - 1)
+                wait = Config.RETRY_BACKOFF ** (attempt - 1)
                 print(f"[LLM] Error: {e}. Retrying in {wait} sec...", flush=True)
                 time.sleep(wait)
 
@@ -107,7 +113,7 @@ class SearchAgent:
         system_path = Path(system_path)
         user_template_path = Path(user_template_path)
 
-        # 입력 파일 읽기
+        # Read Input Files
         with sub_problem_path.open("r", encoding="utf-8") as f:
             brain_data = json.load(f)
 
@@ -117,7 +123,7 @@ class SearchAgent:
         with user_template_path.open("r", encoding="utf-8") as f:
             user_template = f.read()
 
-        # 프롬프트 구성
+        # Build Prompt
         system_prompt, user_prompt = self._build_user_prompt(
             brain_data, system_prompt, user_template
         )
@@ -149,15 +155,11 @@ if __name__ == "__main__":
     src_dir = project_dir / "src"
     
 
-    agent = SearchAgent(
-        api_key="",
-        base_url="https://openrouter.ai/api/v1",
-        model="openai/gpt-oss-20b:free"
-    )
+    agent = SearchAgent()
 
     agent.run_for_sub_problem(
         sub_problem_path= project_dir / "problems" / "chunked" / "01_t_cell_gene_functional_similarity" / "sub_problem_1.json",
-        system_path= src_dir / "search" / "search_system.txt",
-        user_template_path= src_dir / "search" / "search_user_template.txt",
+        system_path= src_dir / "search" / "search_system.md",
+        user_template_path= src_dir / "search" / "search_user_template.md",
         output_dir= project_dir / "outputs" / "search",
     )

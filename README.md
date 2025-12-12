@@ -1,45 +1,51 @@
-# Bio LLM Brain Agent
+# AI Bio LLM Agent
 
-This project implements a multi-agent biological analysis system. The core component is the **Brain Agent**, which analyzes complex biological problems and decomposes them into executable sub-tasks.
+This project implements an automated multi-agent AI pipeline for analyzing complex biological problems. It decomposes large scientific questions into manageable sub-problems, performs literature search, writes academic reports, and iteratively improves them through critical review.
 
-## 📂 System Architecture
+## Architecture
 
-The system operates as a **Batch Processing Pipeline**:
+The system operates in a sequential pipeline handled by `main.py`:
 
-1.  **Input (`problems/given/`)**: Raw biological problems are stored here as `.txt` files.
-2.  **Processing (`main.py`)**: The central script that:
-    - Scans the input directory.
-    - Runs in **parallel** (multi-threaded).
-    - Calls `BrainAgent` (`src/brain/brain.py`) for analysis.
-    - Intelligently determines if a problem is **Atomic** (single step) or **Complex** (needs decomposition).
-3.  **Output (`problems/json/`)**: Results are saved as a **single** flat JSON file for each problem (e.g., `01_problem_id.json`).
+1.  **Brain Agent**: Analyzes the input problem (`.txt`) and decomposes it into sub-problems (`decomposition.json`).
+2.  **Sub-problem Loop**: For each sub-problem, the following agents are executed in order:
+    *   **Search Agent**: Searches for relevant literature and synthesizes information.
+    *   **Blue Agent**: Drafts an initial academic report based on the search results.
+    *   **Red Agent**: Critiques the drafted report from a scientific red-team perspective.
+    *   **BlueX Agent**: Revises the report based on the Red Team's feedback.
+    *   **Red Agent (Final Review)**: Provides a final assessment of the revised report.
 
-## 🛠 Directory Structure
+## Directory Structure
 
+- `src/`: Source code for all agents (`brain`, `blue`, `red`, `search`).
+- `problems/given/`: Place your input problem text files (`.txt`) here.
+- `problems/results/`: Final polished reports and reviews are saved here.
+- `outputs/`: Intermediate artifacts for debugging and tracing (organized by problem ID and sub-problem).
+
+## Setup & Usage
+
+### 1. Environment Variables
+Create a `.env` file in the root directory:
+```bash
+OPENROUTER_API_KEY=your_api_key_here
+# Optional: Override default models
+# MODEL_BRAIN=openai/gpt-4o
+# MODEL_SEARCH=perplexity/llama-3-sonar-large-32k-online
 ```
-ai-bio-llm/
-├── main.py                 # Batch processing entry point
-├── src/
-│   ├── brain/              # Brain Agent logic (with system_prompt.md)
-│   ├── literature/         # Literature Agent (New)
-│   ├── blue/               # Blue Agent (Placeholder)
-│   ├── red/                # Red Agent (Placeholder)
-│   └── data_analizer/      # Data Analizer (Placeholder)
-└── problems/
-    ├── given/              # Input text files
-    └── json/               # Output JSON results (Flat)
+
+### 2. Install Dependencies
+```bash
+pip install -r requirements.txt
 ```
+(Or use your preferred package manager like `conda` or `micromamba`)
 
-## 🚀 Usage
-
-### 1. Prepare Input
-Place your problem text files in `problems/given/`.
-
-### 2. Run Batch Analysis
-Execute the batch processor:
+### 3. Run the Pipeline
+Place your problem text file in `problems/given/`, then run:
 ```bash
 python main.py
 ```
 
-### 3. Check Results
-Go to `problems/json/` to see the generated JSON plans.
+## Agents Configuration
+All model configurations and API settings are centralized in `src/config.py`. You can adjust timeouts, retry logic, and default models there.
+
+## License
+[MIT License](LICENSE)

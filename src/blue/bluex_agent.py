@@ -1,34 +1,40 @@
-from pathlib import Path
+import os
 import json
 import time
 from typing import Optional
+from dotenv import load_dotenv
 
+load_dotenv()
+
+import sys
+from pathlib import Path
+
+# Add project root to sys.path
+if __name__ == "__main__":
+    sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
+
+from src.config import Config
 from openai import OpenAI
-
-MAX_RETRIES = 5
-RETRY_BACKOFF = 2
-READ_TIMEOUT = 120
-
 
 class BlueXAgent:
     
     def __init__(
         self,
-        api_key: str,
-        base_url: str = "https://openrouter.ai/api/v1",
-        model: str = "openai/gpt-oss-20b:free",
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        model: Optional[str] = None,
     ):
-        if not api_key:
-            raise ValueError("api_key must be provided.")
-
-        self.api_key = api_key
-        self.base_url = base_url
-        self.model = model
+        self.api_key = api_key or Config.API_KEY
+        if not self.api_key:
+            raise ValueError("api_key must be provided or set in OPENROUTER_API_KEY environment variable.")
+            
+        self.base_url = base_url or Config.BASE_URL
+        self.model = model or Config.MODEL_BLUEX
 
         self.client = OpenAI(
             base_url=self.base_url,
             api_key=self.api_key,
-            timeout=READ_TIMEOUT,
+            timeout=Config.TIMEOUT,
         )
 
 
@@ -44,7 +50,7 @@ class BlueXAgent:
 
         user_prompt = user_template
 
-        # 원래 코드와 동일한 placeholder 치환
+        # Replace placeholders exactly as in original code
         user_prompt = user_prompt.replace(
             "{RAW_QUESTION}",
             brain_data.get("original_problem_text", "")
@@ -70,7 +76,7 @@ class BlueXAgent:
     def _call_llm(self, system_prompt: str, user_prompt: str) -> str:
         last_err: Optional[Exception] = None
 
-        for attempt in range(1, MAX_RETRIES + 1):
+        for attempt in range(1, Config.MAX_RETRIES + 1):
             try:
                 print(f"[LLM] Request attempt={attempt}, model={self.model}", flush=True)
 
@@ -87,7 +93,7 @@ class BlueXAgent:
 
             except Exception as e:
                 last_err = e
-                wait = RETRY_BACKOFF ** (attempt - 1)
+                wait = Config.RETRY_BACKOFF ** (attempt - 1)
                 print(f"[LLM] Error: {e}. Retrying in {wait} sec...", flush=True)
                 time.sleep(wait)
 
@@ -154,10 +160,10 @@ class BlueXAgent:
             f.write(user_prompt)
         print(f"[IO] User prompt saved at: {user_prompt_file}")
 
-        # LLM 호출
+        # Call LLM
         results = self._call_llm(system_prompt, user_prompt)
 
-        # 결과 저장
+        # Save Results
         with results_file.open("w", encoding="utf-8") as f:
             f.write(results)
         print(f"[IO] Summarized results saved at: {results_file}")
@@ -172,16 +178,12 @@ if __name__ == "__main__":
     project_dir = Path("../..")
     src_dir = project_dir / "src"
     
-    agent = BlueXAgent(
-        api_key="",
-        base_url="https://openrouter.ai/api/v1",
-        model="openai/gpt-oss-20b:free"
-    )
+    agent = BlueXAgent()
 
     agent.run_for_sub_problem(
         sub_problem_path= project_dir / "problems" / "chunked" / "01_t_cell_gene_functional_similarity" / "sub_problem_1.json",
-        system_path= src_dir / "blue" / "bluex_system.txt",
-        user_template_path= src_dir / "blue" / "bluex_user_template.txt",
+        system_path= src_dir / "blue" / "bluex_system.md",
+        user_template_path= src_dir / "blue" / "bluex_user_template.md",
         full_report_path= project_dir / "outputs" / "search" / "results_1.txt",
         red_report_path= project_dir / "outputs" / "red" / "red_results_1.txt",
         data_analysis_results_path= project_dir / "outputs" / "data_analizer" / "data_analysis_results_example.txt",

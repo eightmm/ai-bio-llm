@@ -1,0 +1,24 @@
+# Scientific Question
+{RAW_QUESTION}
+
+# Original Scientific Report
+{COMPLETED_REPORT}
+
+---
+
+# Red Team Review Feedback
+{RED_TEAM_FEEDBACK}
+
+---
+
+# Task
+Revise the original report based on the red team feedback.
+
+## Guidelines
+- Incorporate revisions for critiques that are scientifically valid and relevant.
+- Ensure internal consistency after all revisions.
+
+## Output Requirements
+- Produce a complete revised academic report.
+- Do not include reviewer comments, response letters, or change logs.
+- **Output only the revised report text.**

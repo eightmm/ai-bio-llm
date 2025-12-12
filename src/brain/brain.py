@@ -1,13 +1,13 @@
-import os
-import json
-import time
-from typing import List, Optional
-from dotenv import load_dotenv
-from pydantic import BaseModel, Field
-from openai import OpenAI
+import sys
+from pathlib import Path
 
-# Load environment variables
-load_dotenv()
+# Add project root to sys.path to ensure src imports work if run directly
+# Logic: If running this file directly, add ../../ to sys.path
+if __name__ == "__main__":
+    sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
+
+from src.config import Config
+from openai import OpenAI
 
 # ==========================================
 # Data Models
@@ -31,26 +31,19 @@ class ProblemDecompositionResponse(BaseModel):
 # Brain Agent Logic
 # ==========================================
 
-MAX_RETRIES = 5
-RETRY_BACKOFF = 2
-READ_TIMEOUT = 120
-
 class BrainAgent:
     def __init__(self):
-        self.api_key = os.getenv("OPENROUTER_API_KEY")
-        self.base_url = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
-        self.model = os.getenv("OPENROUTER_MODEL", "google/gemini-3-pro-preview")
-        self.client = self._create_client()
-
-    def _create_client(self) -> OpenAI:
-        if not self.api_key:
-            # You might want to handle this more gracefully or assume it's set
-            print("Warning: OPENROUTER_API_KEY is missing in environment variables.")
+        self.api_key = Config.API_KEY
+        self.base_url = Config.BASE_URL
+        self.model = Config.MODEL_BRAIN
         
-        return OpenAI(
+        if not self.api_key:
+             raise ValueError("API Key is missing. Please set OPENROUTER_API_KEY in .env")
+
+        self.client = OpenAI(
             base_url=self.base_url,
             api_key=self.api_key,
-            timeout=READ_TIMEOUT,
+            timeout=Config.TIMEOUT,
         )
 
     def analyze_question(self, question: str) -> ProblemDecompositionResponse:
@@ -70,7 +63,8 @@ class BrainAgent:
         last_err = None
 
         last_err = None
-        for attempt in range(1, MAX_RETRIES + 1):
+        last_err = None
+        for attempt in range(1, Config.MAX_RETRIES + 1):
             try:
                 print(f"[LLM] request attempt={attempt} model={self.model}", flush=True)
                 response = self.client.chat.completions.create(
@@ -80,7 +74,7 @@ class BrainAgent:
                         {"role": "user", "content": f"Decompose this biological problem:\n\n{question}"}
                     ],
                     response_format={"type": "json_object"},
-                    timeout=READ_TIMEOUT
+                    timeout=Config.TIMEOUT
                 )
                 
                 content = response.choices[0].message.content
@@ -95,7 +89,7 @@ class BrainAgent:
             except Exception as e:
                 last_err = e
                 print(f"[LLM] error: {type(e).__name__}: {e}", flush=True)
-                sleep_time = RETRY_BACKOFF ** (attempt - 1)
+                sleep_time = Config.RETRY_BACKOFF ** (attempt - 1)
                 print(f"Sleeping for {sleep_time} seconds...", flush=True)
                 time.sleep(sleep_time)
         

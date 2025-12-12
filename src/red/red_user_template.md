@@ -1,0 +1,21 @@
+# Scientific Question
+{RAW_QUESTION}
+
+---
+
+# Completed Scientific Report
+{COMPLETED_REPORT}
+
+---
+
+# Task
+Critically evaluate the report in relation to the scientific question.
+
+## Guidelines
+- Be precise and technical rather than vague.
+- Reference specific parts or claims of the report when possible.
+- Frame critiques in neutral, academic language.
+- Do not rewrite the report or propose new experiments unless pointing out their absence as a limitation.
+
+# Output
+Output your feedback as a structured list with clear headings. Output should be no more than 500 words.
