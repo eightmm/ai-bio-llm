@@ -3,16 +3,17 @@ import glob
 import json
 import concurrent.futures
 import time
+import re
 from src.brain.brain import BrainAgent
 
 # Configuration
 INPUT_DIR = "problems/given"
-OUTPUT_BASE_DIR = "problems/chunked"
-MAX_WORKERS = 5  # Adjust based on API rate limits/parallelism needs
+OUTPUT_BASE_DIR = "problems/json"
+MAX_WORKERS = 3  # Adjust based on API rate limits
 
 def process_file(file_path):
     """
-    Reads a file, analyzes it using BrainAgent, and saves the result.
+    Reads a file, analyzes it using BrainAgent, and saves the result as a SINGLE JSON file.
     """
     file_name = os.path.basename(file_path)
     print(f"[{file_name}] Starting analysis...")
@@ -26,64 +27,32 @@ def process_file(file_path):
         agent = BrainAgent()
         result = agent.analyze_question(content)
         
-        # 3. Create Output Directory
+        # 3. Determine Filename (Numbered)
         problem_id = result.problem_id
-        # Use problem_id, or fallback to filename if needed
         if not problem_id:
              problem_id = os.path.splitext(file_name)[0]
-        
+             
         # Extract number from filename (e.g. problem_1.txt -> 1)
-        # Assumes format "problem_X.txt" or similar numbers in name
-        import re
         match = re.search(r'\d+', file_name)
         if match:
             idx = match.group()
-            # Pad with zero, e.g., 01, 02
             prefix = f"{int(idx):02d}_"
             problem_id = prefix + problem_id
 
-        output_dir = os.path.join(OUTPUT_BASE_DIR, problem_id)
-        os.makedirs(output_dir, exist_ok=True)
+        # 4. Save as SINGLE JSON File in 'problems/json'
+        output_file = os.path.join(OUTPUT_BASE_DIR, f"{problem_id}.json")
         
-        # 4. Save Logic (Single vs Multiple)
-        sub_problems = result.sub_problems
+        data = {
+            "original_problem_text": result.original_problem_text,
+            "problem_id": result.problem_id,
+            "main_problem_definition": result.main_problem_definition,
+            "sub_problems": [sub.model_dump() for sub in result.sub_problems]
+        }
         
-        # Condition: If atomic (1 sub-problem) and ID suggests single/atomic
-        is_atomic = False
-        if len(sub_problems) == 1:
-            # Check if ID is expressly 'SINGLE' or just one item
-            is_atomic = True
+        with open(output_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
             
-        if is_atomic:
-            # Save as one consolidated file
-            output_file = os.path.join(output_dir, "problem_analysis.json")
-            data = {
-                "original_problem_text": result.original_problem_text,
-                "problem_id": result.problem_id,
-                "main_problem_definition": result.main_problem_definition,
-                "analysis": sub_problems[0].model_dump()
-            }
-            with open(output_file, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
-            print(f"[{file_name}] Saved SINGLE output to {output_file}")
-            
-        else:
-            # Save split files
-            print(f"[{file_name}] Saved {len(sub_problems)} sub-problems to {output_dir}")
-            for sub in sub_problems:
-                sub_data = {
-                    "original_problem_text": result.original_problem_text,
-                    "problem_id": result.problem_id,
-                    "main_problem_definition": result.main_problem_definition,
-                    "sub_problem": sub.model_dump()
-                }
-                
-                safe_id = sub.id.replace("/", "_").replace("\\", "_")
-                output_file = os.path.join(output_dir, f"sub_problem_{safe_id}.json")
-                
-                with open(output_file, "w", encoding="utf-8") as f:
-                    json.dump(sub_data, f, indent=2, ensure_ascii=False)
-
+        print(f"[{file_name}] Saved analysis to {output_file} ({len(result.sub_problems)} steps)")
         return f"[{file_name}] Success"
 
     except Exception as e:
@@ -112,9 +81,8 @@ def main():
         futures = {executor.submit(process_file, f): f for f in txt_files}
         
         for future in concurrent.futures.as_completed(futures):
-            result = future.result()
-            # Results are printed inside process_file, but we can capture return vals here
-            
+            future.result()
+
     elapsed = time.time() - start_time
     print(f"\nBatch processing complete in {elapsed:.2f} seconds.")
 
