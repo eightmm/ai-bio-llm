@@ -1,3 +1,8 @@
+import os
+import json
+import time
+from typing import List
+from pydantic import BaseModel, Field
 import sys
 from pathlib import Path
 
@@ -60,9 +65,6 @@ class BrainAgent:
             print("Warning: system_prompt.md not found. Using minimal fallback.")
             system_prompt = "You are a biological problem solver. Decompose the problem into JSON."
 
-        last_err = None
-
-        last_err = None
         last_err = None
         for attempt in range(1, Config.MAX_RETRIES + 1):
             try:

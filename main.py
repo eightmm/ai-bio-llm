@@ -206,7 +206,7 @@ def main():
         with open(DUMMY_DATA_ANALYSIS, "w") as f:
              f.write("N/A: No specific data analysis was requested.")
              
-    txt_files = glob.glob(os.path.join(INPUT_DIR, "*.txt"))
+    txt_files = glob.glob(os.path.join(INPUT_DIR, "*problem_1.txt"))
     if not txt_files:
         print(f"No .txt files found in {INPUT_DIR}")
         return
