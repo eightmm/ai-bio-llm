@@ -63,42 +63,41 @@ class BrainAgent:
 
         ### Instructions:
         1.  **Define the Main Problem**: Synthesize the input into a clear, high-level problem statement (Main Problem).
-        2.  **Decompose**: Break the problem down into logical, sequential, or parallel sub-problems.
+        2.  **Assess Complexity (Atomic vs Decomposed)**:
+            - **Atomic**: If the problem is asking for a single, unified analysis (e.g., "Summarize this paper", "Explain gene X"), treat it as ONE sub-problem.
+            - **Decomposed**: If the problem has multiple distinct parts (A, B, C) or steps, break it down.
         3.  **Structure & IDs**: 
-            - Carefully analyze the input text for existing structure markers like (A), (B), 1, 2, etc.
-            - **Use these markers as the `id`** for the sub-problems (e.g., "A", "B", "A-1").
-            - If the text implies a hierarchy (e.g., A -> 1, 2), create combined IDs like "A-1", "A-2".
-            - If no markers exist, use logical sequential IDs (e.g., "Step-1", "Step-2").
+            - **For Decomposed**: Use existing markers like (A), (B) or logical sequence (Step-1, Step-2) as `id`.
+            - **For Atomic/Single**: Use "SINGLE" as the `id`.
         4.  **Problem ID**:
             - Generate a short, descriptive **English** identifier for the problem in **snake_case** (e.g., "lung_fibrosis_target", "t_cell_similarity").
             - This will be used as the directory name.
         5.  **Data Usage (DB_flag & DB_list)**:
-            - Analyze if the sub-problem requires specific data files or databases mentioned in the input text (e.g., "genelist.csv", "TPM expression file", "Q1 features").
-            - **DB_flag**: Set to **1** if data/files are required, **0** otherwise.
-            - **DB_list**: List the specific names of the files/data required (comma-separated). If none, use empty string "".
-        5.  **Detail**: For each sub-problem, provide:
+            - Analyze if the sub-problem requires specific data files or databases mentioned in the input text.
+            - **DB_flag**: 1 if required, 0 otherwise.
+            - **DB_list**: Comma-separated list of filenames (e.g. "genelist.csv"), or empty string.
+        6.  **Detail**: For each sub-problem, provide:
             - A concise **Title**.
             - A detailed **Description**.
             - A **Suggested Approach**.
-        6.  **Language**: All output MUST be in **Korean**.
+        7.  **Language**: All output MUST be in **Korean**.
 
         ### Output Format:
         You must output a valid JSON object matching the schema.
         Note: You do NOT need to include 'original_problem_text' in your JSON output; the system will add it.
         
         {
-            "problem_id": "t_cell_analysis",
+            "problem_id": "unique_problem_identifier",
             "main_problem_definition": "Clear definition of the overarching problem (Korean)",
             "sub_problems": [
                 {
-                    "id": "A",
+                    "id": "A" or "SINGLE",
                     "title": "Sub-problem Title (Korean)",
                     "description": "Detailed description (Korean)",
                     "suggested_approach": "How to solve this part (Korean)",
                     "DB_flag": 1,
                     "DB_list": "genelist.csv, Q1 features"
-                },
-                ...
+                }
             ]
         }
         
