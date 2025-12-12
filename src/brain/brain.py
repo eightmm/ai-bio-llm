@@ -57,52 +57,17 @@ class BrainAgent:
         """
         Analyzes the raw biological question and returns a structured decomposition.
         """
-        system_prompt = """
-        You are an expert Biological Problem Solver and Architect.
-        Your goal is to take a complex, raw biological problem description and DECOMPOSE it into a structured hierarchy: a Main Problem Definition and several Sub-problems.
+        # Load system prompt from file
+        prompt_path = os.path.join(os.path.dirname(__file__), "system_prompt.md")
+        try:
+            with open(prompt_path, "r", encoding="utf-8") as f:
+                system_prompt = f.read()
+        except FileNotFoundError:
+            # Fallback (Safety)
+            print("Warning: system_prompt.md not found. Using minimal fallback.")
+            system_prompt = "You are a biological problem solver. Decompose the problem into JSON."
 
-        ### Instructions:
-        1.  **Define the Main Problem**: Synthesize the input into a clear, high-level problem statement (Main Problem).
-        2.  **Assess Complexity (Atomic vs Decomposed)**:
-            - **Atomic**: If the problem is asking for a single, unified analysis (e.g., "Summarize this paper", "Explain gene X"), treat it as ONE sub-problem.
-            - **Decomposed**: If the problem has multiple distinct parts (A, B, C) or steps, break it down.
-        3.  **Structure & IDs**: 
-            - **For Decomposed**: Use existing markers like (A), (B) or logical sequence (Step-1, Step-2) as `id`.
-            - **For Atomic/Single**: Use "SINGLE" as the `id`.
-        4.  **Problem ID**:
-            - Generate a short, descriptive **English** identifier for the problem in **snake_case** (e.g., "lung_fibrosis_target", "t_cell_similarity").
-            - This will be used as the directory name.
-        5.  **Data Usage (DB_flag & DB_list)**:
-            - Analyze if the sub-problem requires specific data files or databases mentioned in the input text.
-            - **DB_flag**: 1 if required, 0 otherwise.
-            - **DB_list**: Comma-separated list of filenames (e.g. "genelist.csv"), or empty string.
-        6.  **Detail**: For each sub-problem, provide:
-            - A concise **Title**.
-            - A detailed **Description**.
-            - A **Suggested Approach**.
-        7.  **Language**: All output MUST be in **Korean**.
-
-        ### Output Format:
-        You must output a valid JSON object matching the schema.
-        Note: You do NOT need to include 'original_problem_text' in your JSON output; the system will add it.
-        
-        {
-            "problem_id": "unique_problem_identifier",
-            "main_problem_definition": "Clear definition of the overarching problem (Korean)",
-            "sub_problems": [
-                {
-                    "id": "A" or "SINGLE",
-                    "title": "Sub-problem Title (Korean)",
-                    "description": "Detailed description (Korean)",
-                    "suggested_approach": "How to solve this part (Korean)",
-                    "DB_flag": 1,
-                    "DB_list": "genelist.csv, Q1 features"
-                }
-            ]
-        }
-        
-        Do not include markdown formatting (like ```json) in your response, just the raw JSON string.
-        """
+        last_err = None
 
         last_err = None
         for attempt in range(1, MAX_RETRIES + 1):
@@ -136,91 +101,4 @@ class BrainAgent:
         
         raise last_err
 
-# ==========================================
-# Main Execution Block (for testing)
-# ==========================================
-# ==========================================
-# Main Execution Block (for testing/CLI)
-# ==========================================
-if __name__ == "__main__":
-    import argparse
-    import sys
 
-    parser = argparse.ArgumentParser(description="Bio LLM Brain Agent - Problem Decomposition")
-    parser.add_argument("input_file", nargs="?", help="Path to the text file containing the biological problem")
-    args = parser.parse_args()
-
-    agent = BrainAgent()
-    
-    problem_text = ""
-    
-    if args.input_file:
-        try:
-            with open(args.input_file, "r", encoding="utf-8") as f:
-                problem_text = f.read()
-        except FileNotFoundError:
-            print(f"Error: File not found: {args.input_file}")
-            sys.exit(1)
-        except Exception as e:
-            print(f"Error reading file: {e}")
-            sys.exit(1)
-    else:
-        # Default test problem if no file provided
-        print("No input file provided. Using default test problem...")
-        problem_text = """
-        [예시 문제1] T 세포 유전자 간 기능 유사성 정량화
-        T 세포에서는 항원 인식, 활성화, 분화 등 다양한 기능을 수행하는 유전자들이 네트워크 형태로 작동한다. 일반적으로 기능적으로 유사한 유전자쌍은
-        •	발현 패턴(expr_corr)이 비슷하거나,
-        •	단백질 구조(struct_sim)가 유사하거나,
-        •	진화적 계통(phylo_sim)이 가깝다는 특징을 가진다.
-        문제의 목표는 발현 데이터(features)와 유전자 이름(genelist.csv, ENSMUSG+gene name)을 통합하여 유전자간 유사성 점수(Function Similarity Score)를 구축하고 이를 기준으로 유전자군을 정의하는 것이다.
-
-        입력 데이터: Q1 features 파일 
-        TPM expression 파일 포함
-        genelist 포함
-        CD4 T, CD8 T 세포 포함
-        휴지 T 세포: naive, memory T 세포
-        활성 T 세포: TH0, TH1, TH2, TH17, TREG, 0.5/1/2/4h 등
-
-
-        위에 입력된 데이터를 기반으로 아래 요구 사항을 충족하는 분석 전략을 제시하라.
-        (1) LLM 기반 유전자 기능 요약 생성
-        (2) LLM 기반 phylogenic tree (knowledge-based) 생성
-        (3) Expression 기반 유사성 점수 생성
-        (4) (1,2,3) 을 통합한 Similarity Score에 따라 휴지기 T 세포 (naive or memory T 세포)조절에 주요한 유전자쌍을 제시하고, 근거와 생물학적 기능(없을시 생략 가능)을 제시하라. 
-        (5) 휴지기 T 세포 내 상위 발현 300개 gene을 대상으로 공개된 단백질, 도메인 정보를 활용하여 단백질 구조 유사도 점수를 생성하고 휴지기 조절에 중요한 유전자 쌍을 예측하라.
-        """
-    
-    try:
-        print("Running analysis...")
-        result = agent.analyze_question(problem_text)
-        
-        print(f"\n=== Main Problem ({result.problem_id}) ===\n{result.main_problem_definition}")
-        
-        # Create directory based on problem_id
-        base_dir = "problems"
-        output_dir = os.path.join(base_dir, result.problem_id)
-        os.makedirs(output_dir, exist_ok=True)
-        
-        print(f"\n=== Saving Sub-problem Files to '{output_dir}' ===")
-        
-        for sub in result.sub_problems:
-            # Create a dictionary for the individual file
-            sub_problem_data = {
-                "original_problem_text": result.original_problem_text,
-                "problem_id": result.problem_id,
-                "main_problem_definition": result.main_problem_definition,
-                "sub_problem": sub.model_dump()
-            }
-            
-            # Sanitize filename
-            safe_id = sub.id.replace("/", "_").replace("\\", "_")
-            filename = os.path.join(output_dir, f"sub_problem_{safe_id}.json")
-            
-            with open(filename, "w", encoding="utf-8") as f:
-                json.dump(sub_problem_data, f, indent=2, ensure_ascii=False)
-            
-            print(f"Saved: {filename} ([{sub.id}] {sub.title})")
-            
-    except Exception as e:
-        print(f"Analysis failed: {e}")
