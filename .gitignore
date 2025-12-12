@@ -36,7 +36,3 @@ ENV/
 
 # VS Code
 .vscode/
-
-# Project specific
-decomposition_results/
-problems/
