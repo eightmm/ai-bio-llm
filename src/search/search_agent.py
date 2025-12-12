@@ -150,7 +150,7 @@ if __name__ == "__main__":
     
 
     agent = SearchAgent(
-        api_key="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",
+        api_key="",
         base_url="https://openrouter.ai/api/v1",
         model="openai/gpt-oss-20b:free"
     )
