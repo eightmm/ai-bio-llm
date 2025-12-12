@@ -20,16 +20,16 @@ class Config:
     
     # Brain Agent: Decomposes problems
     # Defaulting to a high-reasoning model
-    MODEL_BRAIN = os.getenv("MODEL_BRAIN", "openai/gpt-oss-120b:free")
+    MODEL_BRAIN = os.getenv("MODEL_BRAIN", "google/gemini-2.0-flash-exp:free")
     
     # Search Agent: Searches and synthesizes literature
-    MODEL_SEARCH = os.getenv("MODEL_SEARCH", "perplexity/llama-3.1-sonar-large-128k-online")
+    MODEL_SEARCH = os.getenv("MODEL_SEARCH", "google/gemini-2.0-flash-exp:free")
     
     # Blue Agent: Writes initial reports
-    MODEL_BLUE = os.getenv("MODEL_BLUE", "openai/gpt-oss-120b:free")
+    MODEL_BLUE = os.getenv("MODEL_BLUE", "google/gemini-2.0-flash-exp:free")
     
     # BlueX Agent: Revises reports based on feedback
-    MODEL_BLUEX = os.getenv("MODEL_BLUEX", "openai/gpt-oss-120b:free")
+    MODEL_BLUEX = os.getenv("MODEL_BLUEX", "google/gemini-2.0-flash-exp:free")
     
     # Red Agent: Critiques reports
-    MODEL_RED = os.getenv("MODEL_RED", "openai/gpt-oss-120b:free")
+    MODEL_RED = os.getenv("MODEL_RED", "google/gemini-2.0-flash-exp:free")
