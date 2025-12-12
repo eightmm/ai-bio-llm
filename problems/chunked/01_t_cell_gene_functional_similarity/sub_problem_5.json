@@ -1,0 +1,13 @@
+{
+  "original_problem_text": "﻿[예시 문제1] T 세포 유전자 간 기능 유사성 정량화\nT 세포에서는 항원 인식, 활성화, 분화 등 다양한 기능을 수행하는 유전자들이 네트워크 형태로 작동한다. 일반적으로 기능적으로 유사한 유전자쌍은\n        •        발현 패턴(expr_corr)이 비슷하거나,\n        •        단백질 구조(struct_sim)가 유사하거나,\n        •        진화적 계통(phylo_sim)이 가깝다는 특징을 가진다.\n문제의 목표는 발현 데이터(features)와 유전자 이름(genelist.csv, ENSMUSG+gene name)을 통합하여 유전자간 유사성 점수(Function Similarity Score)를 구축하고 이를 기준으로 유전자군을 정의하는 것이다.\n\n\n입력 데이터: Q1 features 파일 \n* TPM expression 파일 포함\n* genelist 포함\n* CD4 T, CD8 T 세포 포함\n* 휴지 T 세포: naive, memory T 세포\n* 활성 T 세포: TH0, TH1, TH2, TH17, TREG, 0.5/1/2/4h 등\n\n\n\n\n위에 입력된 데이터를 기반으로 아래 요구 사항을 충족하는 분석 전략을 제시하라.\n(1) LLM 기반 유전자 기능 요약 생성\n(2) LLM 기반 phylogenic tree (knowledge-based) 생성\n(3) Expression 기반 유사성 점수 생성\n(4) (1,2,3) 을 통합한 Similarity Score에 따라 휴지기 T 세포 (naive or memory T 세포)조절에 주요한 유전자쌍을 제시하고, 근거와 생물학적 기능(없을시 생략 가능)을 제시하라. \n(5) 휴지기 T 세포 내 상위 발현 300개 gene을 대상으로 공개된 단백질, 도메인 정보를 활용하여 단백질 구조 유사도 점수를 생성하고 휴지기 조절에 중요한 유전자 쌍을 예측하라.",
+  "problem_id": "t_cell_gene_functional_similarity",
+  "main_problem_definition": "T 세포의 유전자 발현 데이터, LLM 기반 지식(기능 및 계통), 단백질 구조 정보를 통합하여 유전자 간 기능적 유사성(Function Similarity Score)을 정량화하고, 이를 바탕으로 휴지기(Naive/Memory) T 세포 조절에 핵심적인 유전자 쌍과 그 생물학적 기전을 규명한다.",
+  "sub_problem": {
+    "id": "5",
+    "title": "휴지기 T 세포 고발현 유전자 대상 단백질 구조 유사성 분석",
+    "description": "휴지기 T 세포에서 발현량이 높은 상위 300개 유전자를 선정하고, 단백질 구조 및 도메인 정보를 활용하여 구조적 유사도(struct_sim)를 기반으로 중요 유전자 쌍을 예측한다.",
+    "suggested_approach": "Q1 features 내 휴지기(naive/memory) 샘플의 평균 TPM을 기준으로 상위 300개 유전자를 선별한다. 공개된 단백질/도메인 DB 또는 LLM 지식을 활용해 이들 간의 구조적 유사성을 계산하고 최종 조절 유전자 쌍을 예측한다.",
+    "DB_flag": 1,
+    "DB_list": "Q1 features, genelist.csv"
+  }
+}

@@ -8,7 +8,7 @@ from src.brain.brain import BrainAgent
 # Configuration
 INPUT_DIR = "problems/given"
 OUTPUT_BASE_DIR = "problems/chunked"
-MAX_WORKERS = 3  # Adjust based on API rate limits/parallelism needs
+MAX_WORKERS = 5  # Adjust based on API rate limits/parallelism needs
 
 def process_file(file_path):
     """
@@ -31,7 +31,17 @@ def process_file(file_path):
         # Use problem_id, or fallback to filename if needed
         if not problem_id:
              problem_id = os.path.splitext(file_name)[0]
-             
+        
+        # Extract number from filename (e.g. problem_1.txt -> 1)
+        # Assumes format "problem_X.txt" or similar numbers in name
+        import re
+        match = re.search(r'\d+', file_name)
+        if match:
+            idx = match.group()
+            # Pad with zero, e.g., 01, 02
+            prefix = f"{int(idx):02d}_"
+            problem_id = prefix + problem_id
+
         output_dir = os.path.join(OUTPUT_BASE_DIR, problem_id)
         os.makedirs(output_dir, exist_ok=True)
         
