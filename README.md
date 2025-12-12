@@ -12,9 +12,7 @@ The system operates as a **Batch Processing Pipeline**:
     - Runs in **parallel** (multi-threaded).
     - Calls `BrainAgent` (`src/brain/brain.py`) for analysis.
     - Intelligently determines if a problem is **Atomic** (single step) or **Complex** (needs decomposition).
-3.  **Output (`problems/chunked/`)**: Results are saved as JSON files in a dedicated folder for each problem.
-    - **Atomic Problems**: Saved as a single `problem_analysis.json`.
-    - **Complex Problems**: Split into multiple files (e.g., `sub_problem_A.json`, `sub_problem_B.json`).
+3.  **Output (`problems/json/`)**: Results are saved as a **single** flat JSON file for each problem (e.g., `01_problem_id.json`).
 
 ## 🛠 Directory Structure
 
@@ -22,26 +20,26 @@ The system operates as a **Batch Processing Pipeline**:
 ai-bio-llm/
 ├── main.py                 # Batch processing entry point
 ├── src/
-│   ├── brain/              # Brain Agent logic (refactored)
+│   ├── brain/              # Brain Agent logic (with system_prompt.md)
+│   ├── literature/         # Literature Agent (New)
 │   ├── blue/               # Blue Agent (Placeholder)
 │   ├── red/                # Red Agent (Placeholder)
 │   └── data_analizer/      # Data Analizer (Placeholder)
 └── problems/
-    ├── given/              # Input text files (Split from total_example.txt)
-    └── chunked/            # Output JSON results
+    ├── given/              # Input text files
+    └── json/               # Output JSON results (Flat)
 ```
 
 ## 🚀 Usage
 
 ### 1. Prepare Input
 Place your problem text files in `problems/given/`.
-(Note: `problems/total_example.txt` contains the raw dataset).
 
 ### 2. Run Batch Analysis
-Execute the batch processor to analyze all files in parallel:
+Execute the batch processor:
 ```bash
 python main.py
 ```
 
 ### 3. Check Results
-Go to `problems/chunked/` to see the generated JSON plans.
+Go to `problems/json/` to see the generated JSON plans.
