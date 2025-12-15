@@ -1,0 +1,22 @@
+## Reliability Score
+- **Score**: 85
+- **Rationale**: The proposed strategy comprehensively addresses all five requirements of the prompt with a logical, multimodal approach. However, it relies heavily on heuristic weighting ($w_1, w_2, w_3$) without a ground-truth validation step, and it overlooks a critical biological noise factor: constitutive housekeeping genes, which often dominate "resting state" co-expression networks.
+
+## Critiques / Limitations / Risks (in priority order)
+
+1.  **Lack of Specificity Filtering (Housekeeping Gene Bias)**
+    The strategy selects genes based on simple expression thresholds (`>1 TPM`) and ranks them by resting co-expression. In resting cells, the strongest co-expression signals usually come from metabolic and ribosomal genes (housekeeping) rather than lineage-specific regulators. Without filtering for T-cell specificity (e.g., specificity index vs. other tissues) or high variance, the top ranked pairs are likely to be biologically trivial (e.g., *RPL* or *ATP* synthase subunits) rather than the target regulators like *TCF7* or *CCR7*.
+
+2.  **Arbitrary Weighting in Integration Step**
+    The Composite Similarity Score (Step 4) assigns static weights (0.5, 0.3, 0.2) to expression, functional, and phylogenetic scores. These values are arbitrary. Without a "gold standard" training set (e.g., known protein-protein interactions or KEGG pathways) to regress or optimize these weights, the resulting score is purely heuristic. It is unclear if a high functional score should rescue a low expression score, or vice versa.
+
+3.  **Instability of LLM-Generated Phylogeny**
+    Step 2 proposes using an LLM to generate a phylogenetic tree based on knowledge. LLMs are non-deterministic and hallucinate relationships; asking an LLM to build a hierarchy can result in different tree topologies across runs. The strategy lacks a "bootstrapping" method (e.g., generating 100 trees and finding consensus) to ensure the `PhyloSim` metric is robust and reproducible.
+
+4.  **Feasibility of Structural Similarity for 90,000 Pairs**
+    Step 5 suggests calculating TM-scores (via AlphaFold) or domain Jaccard indices for the top 300 genes. 
+    *   **Risk**: Doing pairwise structural alignment for $300 \times 299 / 2 \approx 45,000$ pairs is computationally intensive.
+    *   **Data Availability**: The strategy assumes AlphaFold PDBs are readily available and identifiable for all murine T-cell genes via simple ID mapping (ENSMUSG -> UniProt), which often fails for isoforms or poorly annotated genes, leading to missing data in the matrix.
+
+## Final Short Summary to Attach
+The analysis strategy provides a coherent, "execution-ready" framework for integrating transcriptomics, LLM-derived knowledge, and structural data. It successfully outlines a method to satisfy the prompt's multimodal requirements. However, the scientific value of the results is at risk due to the likely dominance of housekeeping genes in the "resting" co-expression module and the use of unvalidated, arbitrary weights for score integration. Future iterations must include a T-cell specificity filter and a stability check for LLM-generated hierarchies.

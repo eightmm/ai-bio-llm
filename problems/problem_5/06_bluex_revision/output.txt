@@ -1,0 +1,147 @@
+## (A) T Cell Exhaustion Signature Analysis
+
+### A-1. Inputs and Assumptions
+- **Input**: `exhaustion_signature`, defined as a list of genes reproducibly upregulated or downregulated in exhausted T cells.
+- **Assumption**: The signature originates from immune-relevant contexts (e.g., chronic infection or tumor-infiltrating lymphocytes) and distinguishes exhaustion from related but distinct states such as anergy or senescence.
+- **Limitation**: Because the explicit gene list is not resolved here, no new signature derivation or refinement is performed. All downstream steps are conditional on the validity of the provided input.
+
+### A-2. Analytical Procedure
+1. **Directional Stratification**
+   - Partition genes into:
+     - **Exhaustion-up** (e.g., inhibitory receptors, exhaustion-associated transcriptional regulators).
+     - **Exhaustion-down** (e.g., effector cytokines, cytotoxic molecules, memory-associated genes).
+   - Directionality is preserved as the core feature for reversal analysis.
+
+2. **Functional Annotation**
+   - Annotate genes into immune-relevant functional modules:
+     - Inhibitory receptor signaling.
+     - Transcriptional and epigenetic regulators of exhaustion.
+     - Effector and metabolic programs.
+   - This annotation is used later to interpret whether predicted drug effects are biologically coherent.
+
+3. **Signature Quality Control**
+   - Prefer genes with consistent regulation across multiple immune datasets if available.
+   - Optionally restrict to the most robustly regulated genes to reduce noise and context-specific artifacts.
+
+### A-3. Outputs
+- A **directional exhaustion gene signature** (up/down).
+- Functional module annotations to support mechanistic interpretation.
+
+### A-4. Caveats
+- T cell exhaustion is heterogeneous and context-dependent.
+- Any downstream prediction is bounded by the biological specificity and quality of the input signature.
+
+---
+
+## (B) Drug–Gene Network–Based Candidate Discovery
+
+### B-1. Inputs
+- Exhaustion gene signature from (A).
+- **Drug-related open data**:
+  - Drug–target interaction databases (drug–protein relationships and mode of action where available).
+  - Drug-induced transcriptional perturbation resources (e.g., LINCS/CMap).
+  - Protein–protein interaction (PPI) networks.
+
+### B-2. Signature Reversal Analysis with Immune-Context Filtering
+1. **Query Definition**
+   - Exhaustion-up genes are treated as “disease-up”.
+   - Exhaustion-down genes are treated as “disease-down”.
+
+2. **Drug Signature Matching**
+   - For each drug perturbation profile:
+     - Compute similarity between drug-induced changes and the exhaustion signature using correlation- or enrichment-based metrics.
+   - **Interpretation**:
+     - Strong negative similarity indicates potential **signature reversal**.
+
+3. **Cell-Type Context Mitigation**
+   - Because most perturbation data derive from non–T cell cancer lines:
+     - Prioritize drugs whose known targets are expressed in hematopoietic or immune lineages.
+     - Down-weight or flag drugs whose targets are exclusively epithelial- or tumor-specific.
+   - This step does not eliminate context mismatch but explicitly reduces reliance on non-immune biology.
+
+4. **Cytotoxicity and Stress Filtering**
+   - Exclude or deprioritize drugs known to cause broad cytotoxicity or global transcriptional shutdown.
+   - Rationale: apparent “reversal” driven by apoptosis or stress responses is not interpreted as functional exhaustion reversal.
+
+### B-3. Drug–Target Network Integration with Directionality
+1. **Target Mapping with Mode of Action**
+   - Map candidate drugs to their known targets and annotate **mode of action** (e.g., inhibitor, antagonist, agonist) where available.
+   - This annotation is used to assess whether target modulation is directionally consistent with reversing exhaustion-associated pathways.
+
+2. **Network Propagation**
+   - Project drug targets onto a PPI network.
+   - Apply network propagation to estimate proximity to exhaustion-related modules.
+
+3. **Directional Consistency Check**
+   - Proximity alone is not sufficient.
+   - Candidates are prioritized when:
+     - Targets are proximal to exhaustion drivers **and**
+     - The drug’s mode of action is plausibly antagonistic to exhaustion-promoting pathways or supportive of effector programs.
+
+### B-4. Multi-Score Integration
+- Integrate evidence using a reproducible heuristic:
+  - **Integrated priority score** = weighted combination of:
+    - Transcriptomic reversal strength.
+    - Network proximity to exhaustion modules.
+    - Directional consistency based on mode of action.
+- Weights are predefined to emphasize transcriptional reversal while requiring supportive network and MoA evidence.
+
+### B-5. Outputs
+- A ranked list of candidate drugs with:
+  - Signature reversal score.
+  - Network proximity score.
+  - Mode-of-action–aware consistency flag.
+  - Clinical development status.
+
+### B-6. Caveats
+- Drug-induced signatures may not fully recapitulate T cell–specific transcriptional programs.
+- Network-based inference suggests association, not causality.
+- Directional annotations are limited by the completeness of public drug metadata.
+
+---
+
+## (C) Drug Candidate Selection and Mechanistic Hypothesis Generation
+
+### C-1. Prioritization Criteria
+1. **Primary**: Robust and immune-context–filtered exhaustion signature reversal.
+2. **Secondary**: Network proximity with directionally consistent mode of action.
+3. **Tertiary**: Clinical feasibility (approved or late-stage compounds).
+4. **Biological Plausibility**: Alignment with known mechanisms of T cell exhaustion.
+
+### C-2. Representative Mechanistic Classes (Illustrative)
+> These categories represent **hypothesis-generating mechanisms**, not definitive predictions.
+
+1. **Inhibitory Signaling Modulators**
+   - Drugs targeting pathways upstream or downstream of immune checkpoint signaling.
+   - **Hypothesis**: Reduced inhibitory tone restores TCR signaling and effector gene expression.
+
+2. **Transcriptional Network Reprogrammers**
+   - Compounds affecting exhaustion-associated transcriptional regulators.
+   - **Hypothesis**: Shifting transcriptional balance destabilizes the exhausted state.
+
+3. **Metabolic Pathway Modulators**
+   - Drugs influencing metabolic checkpoints relevant to T cell fitness.
+   - **Hypothesis**: Improved metabolic capacity supports functional reinvigoration.
+
+4. **Epigenetic Modifiers**
+   - Agents targeting chromatin-modifying enzymes.
+   - **Hypothesis**: Increased chromatin accessibility enables re-expression of silenced effector programs.
+
+### C-3. Output per Candidate Drug
+For each prioritized candidate:
+- Drug name and clinical status.
+- Known molecular targets and mode of action.
+- Evidence summary:
+  - Transcriptomic reversal.
+  - Network proximity and directional consistency.
+- Mechanistic hypothesis linking target modulation to exhaustion reversal.
+
+### C-4. Validation and Limitations
+- Predictions require validation in exhausted T cell models.
+- Effects may be context-specific and synergistic with immune checkpoint blockade.
+- Signature reversal alone does not guarantee durable epigenetic reprogramming.
+
+---
+
+### Overall Limitation Statement
+This report presents a **reproducible, immune-aware analytical framework** for predicting drug repositioning candidates capable of reversing T cell exhaustion. While the framework explicitly addresses cell-type context mismatch, network directionality, score integration, and cytotoxicity artifacts, all conclusions remain conditional on the quality and specificity of the provided exhaustion gene signature.

@@ -1,0 +1,23 @@
+{
+  "original_problem_text": "[예시 문제4] 폐 섬유증 치료 타겟 발굴: IL-11 상호작용 네트워크 기반 억제제 후보 설계\n폐 섬유증(특히 특발성 폐섬유증, IPF)은 폐 조직이 비가역적으로 딱딱해지고 기능이 저하되는 진행성 질환으로, 현재 승인된 치료제(예: 항섬유화제)들도 병의 진행을 완전히 막지 못한다는 한계가 있다. 최근 연구에 따르면 IL-11(Interleukin-11)은 섬유아세포 활성화, 세포외기질(ECM) 축적, 염증–섬유화 연계 신호 등 폐 섬유화 병인에서 중요한 역할을 하는 사이토카인으로 보고되고 있으며, 조직 노화 및 전신적인 노화 관련 병태생리와도 연관된 인자로 주목받고 있다. IL-11과 새롭게 규명된 상호작용자(interactor)들은 섬유화·노화 네트워크의 핵심 노드로 부상하고 있다.\n본 문제의 목표는, 폐 섬유증과 연관된 IL-11 신호 및 그 상호작용자에 대한 최신 문헌·데이터를 통합 분석하여, 섬유화 경로를 가장 효과적으로 차단할 수 있는 억제 타겟 후보를 예측하고 그 과학적 근거를 제시하는 것이다. 필요하다면, IL-11이 관여하는 노화 관련 경로가 섬유화와 어떻게 연결되는지도 함께 고려하시오. 이를 위해 다음과 같은 역할이 요구된다.\n* 문헌 분석(IL-11 관련 최신 논문, OMICs 데이터, 리뷰 등)\n* 단백질 상호작용 네트워크(PPI) 및 경로 네트워크 모델링\n* 가설 기반 추론(섬유화 및 노화 억제에 가장 영향력이 큰 노드/상호작용 정의)\n아래 (A), (B)의 요구 사항을 모두 충족하는 분석 및 설계 전략을 제시하시오.\n(A) 폐 섬유화를 유발하는 IL-11 및 IL-11 상호작용 인자 분석\n1. IL-11의 폐 섬유증 및 노화 관련 역할 정리\n2. 새롭게 보고된 IL-11 상호작용자 목록 통합\n3. 단백질 상호작용 네트워크 및 섬유화/노화 경로 모델링\n4. 최종 타겟 후보 제안 및 근거\n(B) IL-11 및 상호작용 인자를 효과적으로 저해할 수 있는 binder 제안 (바이오의약품 설계 관점)\n1. 타겟 클래스 및 모달리티 정의\n2. binder 설계 전략(개략 수준)\n3. 섬유화 및 노화 억제 효과, 안전성에 대한 가설 제시",
+  "problem_id": "il11_ipf_target_and_binder_design",
+  "main_problem_definition": "Integrate up-to-date literature and network-level biological evidence on IL-11 signaling and its interactors in pulmonary fibrosis and aging to identify high-impact inhibitory targets, and propose a rational bio-therapeutic binder design strategy with mechanistic and safety justification.",
+  "sub_problems": [
+    {
+      "id": "1_IL11_Fibrosis_Aging_Network_Analysis",
+      "title": "IL-11–Centered Fibrosis and Aging Network Analysis for Target Discovery",
+      "description": "Systematically analyze the role of IL-11 in pulmonary fibrosis (especially IPF) and aging-related biology, integrate newly reported IL-11 interactors, and construct protein–protein interaction (PPI) and pathway networks to identify key nodes or interactions whose inhibition is most likely to block fibrotic progression. This sub-problem must jointly address all requirements in (A): (1) summarize IL-11 functions in fibrosis and aging, (2) curate and integrate newly reported IL-11 interactors, (3) model PPI and fibrosis/aging signaling pathways, and (4) nominate final inhibitory target candidates with clear scientific rationale.",
+      "suggested_approach": "Perform a focused literature review (recent 5–7 years) using PubMed/Google Scholar on IL-11, IPF, fibroblast activation, ECM deposition, STAT3/ERK signaling, and aging hallmarks. Integrate reported IL-11 interactors and downstream effectors into a PPI network using tools such as STRING (conceptually), Cytoscape, or NetworkX-style graph reasoning. Overlay fibrosis- and aging-related pathways (e.g., TGF-β, JAK/STAT3, MAPK/ERK, senescence-associated secretory phenotype). Apply network centrality and causal reasoning (hub, bottleneck, and signaling convergence analysis) to prioritize nodes or interactions most influential for fibrosis and aging coupling. Formulate mechanistic hypotheses explaining why selected targets are optimal inhibition points.",
+      "DB_flag": 0,
+      "DB_list": ""
+    },
+    {
+      "id": "2_Binder_and_Modality_Design",
+      "title": "Binder Modality Selection and Conceptual Design for IL-11 Pathway Inhibition",
+      "description": "Based on the prioritized IL-11–related targets or interactions identified in Sub-problem 1, propose an effective bio-therapeutic binder strategy. This must collectively satisfy all requirements in (B): (1) define target class and therapeutic modality, (2) outline a high-level binder design strategy, and (3) propose hypotheses regarding antifibrotic and anti-aging efficacy as well as safety considerations.",
+      "suggested_approach": "Select appropriate target classes (e.g., soluble cytokine IL-11, receptor interfaces such as IL-11RA/gp130, or critical downstream signaling complexes) and match them with suitable modalities (monoclonal antibody, nanobody, decoy receptor, peptide/protein binder). Describe conceptual binder design approaches using state-of-the-art methods (e.g., AlphaFold 3–informed complex modeling, RFdiffusion-based binder scaffolding, or antibody engineering principles). Reason mechanistically how target engagement would suppress fibroblast activation, ECM accumulation, and aging-associated signaling while minimizing on-target/off-tissue toxicity. Discuss expected safety profiles based on pathway specificity and tissue expression patterns.",
+      "DB_flag": 0,
+      "DB_list": ""
+    }
+  ]
+}

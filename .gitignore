@@ -36,17 +36,3 @@ ENV/
 
 # VS Code
 .vscode/
-
-# Project artifacts / runs
-problems/problem_*/01_brain/
-problems/problem_*/02_search/
-problems/problem_*/03_data_analysis/
-problems/problem_*/04_blue_draft/
-problems/problem_*/05_red_critique/
-problems/problem_*/06_bluex_revision/
-problems/problem_*/07_red_review/
-problems/problem_*/08_answer/
-problems/problem_*/answer_*.txt
-
-# Legacy outputs (if present)
-outputs/

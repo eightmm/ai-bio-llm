@@ -1,0 +1,161 @@
+## AI-Driven Mini‑Binder Discovery Pipeline for Selective TNFR Targeting in TNBC  
+*(TNFα–ΔNp63α axis–focused design)*
+
+**Overall assumption and scope**  
+- The goal is *computational discovery and prioritization* of TNFR‑selective mini‑binders; experimental validation is downstream and not performed here.  
+- Structural models of TNFR1/2 extracellular domains are assumed to be available (experimental or AlphaFold‑predicted).  
+- Binding affinity, kinetics, and off‑target risks are *predicted* with known uncertainty; rankings are therefore probabilistic, not definitive.
+
+---
+
+### **1. Binder의 TNFR1/2 결합 부위 선정 (Epitope Selection)**
+
+**Objective**  
+Select TNFR1- or TNFR2‑specific epitopes that encode desired signaling bias (antagonism vs agonism) relevant to TNBC and the TNFα–ΔNp63α axis.
+
+**Tools / Approaches**  
+- Structural analysis of TNFR1/2 extracellular domains (CRD1–CRD4) using experimental structures or AlphaFold models.  
+- Interface mapping against TNFα‑binding sites and PLAD regions.  
+- Literature‑guided functional annotation of epitopes (ligand blocking vs clustering modulation).
+
+**Selection Logic**  
+- **TNFR1 (generally antagonistic intent):**  
+  - CRD1–CRD3 TNFα‑contact regions → ligand‑blocking antagonists.  
+  - CRD4 or opposite‑face epitopes → disruption of receptor clustering/signaling complex assembly.  
+- **TNFR2 (agonist or antagonist, context‑dependent):**  
+  - Same‑face (Group I) epitopes → potential clustering/agonism.  
+  - Opposite‑face (Group II) or PLAD‑adjacent epitopes → antagonism or signaling suppression.
+
+**Output → Next Step Input**  
+- 3–5 epitope definitions per receptor, specified as residue sets (“interface hotspots”) for generative design.
+
+**Caveat**  
+- Epitope–signaling relationships are inferred from structural and prior functional data; cell‑context effects are not modeled here.
+
+---
+
+### **2. Binder의 생물물리적 제약 조건 반영 (Biophysical Constraints)**
+
+**Objective**  
+Ensure designed mini‑binders are developable, stable, and manufacturable while retaining binding potential.
+
+**Design Constraints**  
+- **Length:** 40–70 aa (target 50–65 aa).  
+- **Topology:** β₂αβ₂ or compact helical bundles with defined hydrophobic core.  
+- **Charge:** Net charge −5 to +5; pI 5.5–8.5.  
+- **Stability:** Predicted high folding confidence; optional 1–2 disulfide bonds.  
+- **Solubility:** Minimize exposed hydrophobic patches; avoid aggregation‑prone motifs.  
+- **Manufacturability:** No signal peptides, cryptic cleavage sites, or unwanted glycosylation motifs.
+
+**Tools / Approaches**  
+- Constraint conditioning during generative design.  
+- Sequence‑based solubility and developability filters post‑design.
+
+**Output → Next Step Input**  
+- Explicit scaffold and sequence constraints fed into backbone and sequence design models.
+
+**Caveat**  
+- Solubility and expression are predicted from sequence and remain imperfect proxies for real expression yields.
+
+---
+
+### **3. 후보 binder 서열 설계 (De Novo Sequence Design)**
+
+**Objective**  
+Generate diverse mini‑binder sequences that satisfy structural and biophysical constraints while targeting selected TNFR epitopes.
+
+**Primary Tools**  
+- **RFdiffusion:** De novo backbone generation conditioned on TNFR structure and epitope hotspots.  
+- **ProteinMPNN:** Sequence design on fixed backbones with conserved framework and variable paratope.
+
+**Procedure**  
+1. Generate 50–100 backbone designs per epitope with RFdiffusion.  
+2. Filter backbones by predicted fold quality.  
+3. For each backbone, generate 10–20 sequence variants with ProteinMPNN.  
+4. Validate monomer folding via AlphaFold‑based confidence metrics.
+
+**Output → Next Step Input**  
+- Hundreds to thousands of mini‑binder sequences with predicted folded structures.
+
+**Alternative Approaches**  
+- Rosetta‑based de novo design (lower throughput).  
+- Other inverse‑folding neural networks.
+
+**Caveat**  
+- High predicted fold confidence does not guarantee functional binding.
+
+---
+
+### **4. 후보 binder–TNFR 결합 구조 및 결합 특성 예측 (Structure & Binding Analysis)**
+
+**Objective**  
+Confirm intended binding mode and estimate affinity/kinetics.
+
+**Tools**  
+- **AlphaFold (complex mode):** Predict binder–TNFR1/2 complex structures.  
+- **Rosetta flex_ddG:** Estimate binding free energy (ΔΔG → approximate Kd).  
+- **ML‑based scoring models:** Supplement affinity and kinetics (kon, koff) estimation.
+
+**Metrics / Filters**  
+- Interface pAE < ~5 Å; interface pLDDT > ~70.  
+- Favorable Rosetta binding energies (relative ranking).  
+- Predicted kon > 10⁴ M⁻¹s⁻¹; koff compatible with sustained receptor engagement.
+
+**Output → Next Step Input**  
+- Shortlisted candidates with predicted structures, Kd, kon, koff estimates.
+
+**Caveat**  
+- Absolute Kd/kinetics values are approximate; used for *relative* ranking only.
+
+---
+
+### **5. 오프타깃 수용체 탐색 및 결합 가능성 평가 (Off‑Target Assessment)**
+
+**Objective**  
+Minimize cross‑reactivity, especially within the TNFR superfamily.
+
+**Off‑Target Panel**  
+- TNFRSF members: Fas, TRAIL‑R1/R2, LTβR, CD27, CD40, OX40, 4‑1BB, GITR, etc.
+
+**Tools / Approaches**  
+- Structure‑based docking of binders to off‑target receptors.  
+- Sequence‑embedding similarity (protein language models) for selectivity prediction.  
+- Epitope conservation analysis across receptors.
+
+**Output → Next Step Input**  
+- Off‑target risk score per candidate (likelihood × clinical relevance).
+
+**Caveat**  
+- Low‑probability off‑targets may still emerge experimentally; this step reduces, not eliminates, risk.
+
+---
+
+### **6. 후보 서열의 우선순위 지표화 (Ranking & Prioritization)**
+
+**Objective**  
+Select the most promising mini‑binders for experimental validation.
+
+**Ranking Criteria (Multi‑Criteria Framework)**  
+1. Predicted binding affinity (Kd).  
+2. Structural confidence of complex (AlphaFold metrics).  
+3. TNFR1 vs TNFR2 selectivity.  
+4. Off‑target risk score.  
+5. Predicted stability and solubility.  
+6. Manufacturability indicators.  
+7. Consistency with intended signaling bias (epitope geometry).
+
+**Method**  
+- Weighted multi‑criteria decision analysis (e.g., TOPSIS‑like scoring).  
+- Sensitivity analysis by varying criterion weights.
+
+**Final Output**  
+- Rank‑ordered list of top 10–20 candidates.  
+- Identification of top 3–5 *robust* leads recommended for experimental testing.
+
+**Limitation**  
+- Ranking reflects integrated computational predictions; experimental assays (SPR, cell signaling) are required to confirm mechanism and efficacy.
+
+---
+
+### **End Result**
+A fully integrated, AI‑driven, and bias‑aware pipeline that delivers **TNFR‑selective mini‑binder candidates** optimized for affinity, specificity, safety, and developability, tailored to therapeutic modulation of the **TNFα–ΔNp63α axis in TNBC**.

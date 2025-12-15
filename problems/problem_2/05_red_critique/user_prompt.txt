@@ -1,0 +1,296 @@
+# Problem
+[예시 문제2] RNA 바이러스 유래 cis-Regulatory Element에 의한 mRNA 안정화 메커니즘 규명 및 Poly(A) Tail 변형 분석
+어떤 RNA 바이러스가 숙주 세포 내에서 스스로의 분해를 막기 위해 poly(A) tail을 조절한다는 사실이 보고되었다. 연구자는 이 바이러스의 안정화 기능에 핵심적인 cis-regulatory element(CRE)를 규명하고자 하며, 이를 통해 CRE가 어떤 방식으로 mRNA 안정성을 높이는지, 안정화를 위해 poly(A) tail이 어떤 형태로 변형되는지, 안정화 과정에 관여하는 숙주 효소가 무엇인지를 밝히고자 한다.
+이를 위해 바이러스에서 유래한 CRE 서열을 3’ UTR에 삽입한 mRNA를 in vitro transcription으로 제작하고, lipid nanoparticle(LNP)을 이용해 세포에 전달하였다. 정상적인 단백질 발현이 확인되었으며, transfection 24시간 후에는 CRE가 없는 대조군 대비 10배 이상의 발현량 증가가 관찰되었다. 보다 정확한 메커니즘을 확인하기 위해, 연구자는 transfection 24시간 후 세포의 RNA를 nanopore direct RNA sequencing(dRNA-seq)으로 분석하였다. 비교를 위해, 동일한 CRE를 가지고 있음에도 RNA 안정성 증가가 관찰되지 않은 세포군을 inactive, 안정성이 크게 증가한 세포군을 active로 명명하여 각각 sequencing을 수행했다.
+데이터 전처리 후 다음과 같은 8개의 파일이 제공되었다.
+* active-control.pod5: Active 세포에서 대조군 RNA의 전류 신호 데이터
+* active-control.bam: 위 데이터를 basecall 후 참조 서열에 정렬한 결과
+* active-cre.pod5: Active 세포에서 CRE를 포함한 RNA의 전류 신호 데이터
+* active-cre.bam: 위 데이터를 basecall 후 참조 서열에 정렬한 결과
+* inactive에서도 위 네 파일과 동일한 구성이 제공됨
+아래의 질문에 답하시오.
+(1) 이 바이러스 유래 CRE가 RNA 안정성을 증가시킬 수 있는 가능한 분자 메커니즘을 3가지 이상 제시하고, 각 가설을 검증할 수 있는 실험 또는 데이터 분석 방법을 제안하시오.
+
+
+(2) 제공된 dRNA-seq 데이터를 이용하여 poly(A) tail 길이의 분포 차이를 정량적으로 비교하고, 그 차이를 본 연구 맥락에서 해석하여 논문에 포함할 수 있는 보고서 형태로 요약하시오.
+(3) 제공된 전류 신호 데이터에서 poly(A) 영역을 분석하여, A 이외의 염기 또는 화학적 수식(modified base)이 존재할 가능성을 확인하고, 이를 시각화하여 설명과 함께 정리하시오.
+(4) (3)에서 확인한 비-A 염기 또는 수식염기의 빈도와 분포가 CRE 존재 여부(active-control vs. active-cre), 그리고 active/inactive 세포군 간에 어떻게 다른지 비교하고, 이를 시각화하여 보고서로 정리하시오. 특히, 결과의 생물학적 의미와 향후 연구 방향을 제안하시오.
+(5) active-cre 데이터에서 poly(A) 내부 수식 염기의 분포에 특이점이 존재하는지 탐색하고, 발견된 특이점을 설명할 수 있는 가설을 제시하시오.
+(6) 앞선 분석을 바탕으로 인간 세포에서 poly(A) 안정화 메커니즘을 매개할 가능성이 높은 효소를 우선순위 순으로 5개 제시하고, 각 후보의 가능성을 평가한 기준과 문헌적 근거를 제시하시오.
+(7) (6)에서 제시한 효소가 실제로 해당 CRE를 인지하고 기능하는지 확인하기 위한 실험 전략을 설계하시오.
+(8) (7)에서 특정 효소가 핵심적 역할을 한다고 확인되었다고 가정할 때, 그 이후 수행할 수 있는 분자생물학적 후속 연구 방향을 폭넓게 제시하시오. 예를 들어, cofactor 요구성, 기질 특이성, 세포 내 위치(localization), 조절 인자, 생리적 역할, 산업적 활용 가능성 등을 포함하여 제안하시오.
+(9) 위의 연구 배경, 선행연구, 데이터 분석 결과, 메커니즘 규명 결과 및 향후 발전 가능성을 모두 포함하여, 그림 10개 이내, 약 3000단어 분량의 학술 논문 초안을 작성하시오.
+
+---
+
+# Completed Answer
+Below is a **single, coherent answer that exactly follows the numbering and scope requested in the Problem**.  
+Because the provided **Data analysis output reports that the files could not be resolved**, **no empirical numerical results are asserted**. All data-driven sections are therefore written as **execution-ready analysis plans plus result-interpretation frameworks**, with limitations explicitly stated, in accordance with Scientific Fidelity.
+
+---
+
+## (1) Possible molecular mechanisms by which the viral CRE increases RNA stability, and how to test them
+
+### Hypothesis 1: CRE-mediated recruitment of poly(A)-binding proteins and mRNA circularization
+**Mechanism**  
+The CRE in the 3′ UTR promotes binding of host RNA-binding proteins (RBPs), such as PABPC or stabilizing ARE-binding proteins (e.g., HuR), enhancing mRNA circularization (5′ cap–eIF4G–PABPC–poly(A)) and shielding the poly(A) tail from deadenylases.
+
+**Validation**
+- **RIP-seq / CLIP-seq** targeting PABPC, HuR, ELAVL-family proteins  
+  *Input:* active-cre vs. active-control RNA  
+  *Output:* enrichment of CRE-containing reads  
+- **CRE mutagenesis** followed by mRNA half-life measurement (actinomycin D chase)  
+- **Polysome profiling** to test coupling of stabilization to translation
+
+---
+
+### Hypothesis 2: CRE-dependent modification of the poly(A) tail with non-A nucleotides
+**Mechanism**  
+The CRE recruits non-canonical poly(A) polymerases or terminal nucleotidyl transferases, generating mixed poly(A) tails (A/G/U), which are poor substrates for CCR4–NOT and PAN2–PAN3 deadenylases.
+
+**Validation**
+- **Nanopore dRNA-seq tail composition analysis**  
+  *Metric:* frequency of non-A bases within poly(A)  
+- **Enzyme perturbation** (siRNA or CRISPR knockout of PAPD5, TENT5A, TUTs)  
+- **In vitro polyadenylation assays** with CRE-containing RNA substrates
+
+---
+
+### Hypothesis 3: CRE inhibits recruitment or activity of deadenylase complexes
+**Mechanism**  
+The CRE binds factors that block CCR4–NOT or PAN2–PAN3 access to the poly(A) tail, slowing deadenylation without necessarily altering initial tail length.
+
+**Validation**
+- **Deadenylation kinetics assays** using cell extracts  
+- **Co-IP / CLIP-seq** for CCR4–NOT subunits  
+- **Loss-of-function of inhibitory RBPs** followed by stability assays
+
+---
+
+### Hypothesis 4: CRE-dependent uridylation at intermediate poly(A) tail lengths
+**Mechanism**  
+Selective uridylation by TUT enzymes at non-terminal stages prevents commitment to rapid decay pathways.
+
+**Validation**
+- **Signal-level nanopore analysis** to detect U-rich current signatures  
+- **TUT enzyme knockdown** combined with dRNA-seq  
+- **Time-course tail analysis** post-transfection
+
+---
+
+## (2) Quantitative comparison of poly(A) tail length distributions using dRNA-seq, and report-style interpretation
+
+### Analysis Pipeline
+**Inputs**
+- BAM files: `active-control.bam`, `active-cre.bam`, `inactive-control.bam`, `inactive-cre.bam`
+
+**Steps**
+1. Extract aligned reads with intact 3′ ends.
+2. Estimate poly(A) tail length using:
+   - `nanopolish polya` (alignment-based)
+   - `tailfindr` (signal-aware)
+3. Filter low-quality reads and truncated tails.
+4. Generate tail-length distributions per condition.
+5. Perform statistical comparisons:
+   - Wilcoxon rank-sum test
+   - Kolmogorov–Smirnov test
+6. Visualize via violin plots and CDFs.
+
+**Outputs**
+- Median and IQR of poly(A) length per condition
+- Effect sizes and corrected p-values
+
+### Interpretation Framework (for manuscript)
+- **Active-cre > Active-control:** supports CRE-mediated stabilization.
+- **Active vs. Inactive difference:** indicates host-factor dependency.
+- **No difference:** suggests mechanisms independent of tail length.
+
+**Limitation**
+- Actual numerical results cannot be reported due to unresolved input files.
+
+---
+
+## (3) Detection of non-A bases or chemical modifications in poly(A) regions from current signal data
+
+### Analysis Pipeline
+**Inputs**
+- POD5 files: `*-control.pod5`, `*-cre.pod5`
+
+**Steps**
+1. Identify poly(A) regions using alignment coordinates.
+2. Extract raw current signals (squiggles).
+3. Compare signals to canonical poly(A) current models.
+4. Detect deviations using:
+   - Tombo / Remora (signal-level statistics)
+5. Classify deviations as:
+   - Base substitutions (G/U/C)
+   - Potential chemical modifications (model-dependent)
+
+**Visualization**
+- Signal overlay plots (A vs. non-A)
+- Heatmaps of deviation scores along poly(A)
+
+**Caveat**
+- Nanopore chemistry cannot unambiguously distinguish all base modifications; results are probabilistic.
+
+---
+
+## (4) Comparison of non-A base frequency across conditions and biological interpretation
+
+### Quantitative Comparison
+**Metrics**
+- Fraction of reads with ≥1 non-A base in poly(A)
+- Per-base frequency of G, U, C
+- Positional density along the tail
+
+**Comparisons**
+- active-control vs. active-cre
+- active-cre vs. inactive-cre
+
+**Visualization**
+- Stacked bar plots (base composition)
+- Metagene plots (position vs. frequency)
+- Boxplots per condition
+
+### Biological Meaning
+- **Higher non-A frequency in active-cre:** CRE recruits tail-modifying enzymes.
+- **Absent in inactive cells:** host enzymatic context is required.
+
+### Future Directions
+- Link modification patterns to decay resistance kinetics.
+- Test whether mixed tails impair deadenylase binding in vitro.
+
+---
+
+## (5) Exploration of unique modification patterns within active-cre poly(A) tails
+
+### Analysis
+- Cluster active-cre reads by tail length and modification density.
+- Identify hotspots of non-A incorporation.
+- Test enrichment near body–tail junction vs. distal tail.
+
+### Hypotheses
+- CRE promotes **periodic or clustered modification**, reflecting processive enzyme activity.
+- Specific patterns may correspond to distinct enzymes (e.g., G-rich vs. U-rich tails).
+
+---
+
+## (6) Prioritized list of host enzymes likely mediating poly(A) stabilization
+
+**Ranking Criteria**
+- Known poly(A) modification activity
+- Compatibility with nanopore-detectable signatures
+- Viral precedent
+- Cytoplasmic localization
+
+### Priority List
+1. **PAPD5** – mixed A/G tail synthesis, viral RNA stabilization precedent  
+2. **TENT5A** – inducible poly(A) extension, immune-linked  
+3. **CCR4–NOT (CNOT6/7)** – target of inhibition rather than modification  
+4. **HuR (ELAVL1)** – stabilizing RBP, CRE recognition candidate  
+5. **TUT4/TUT7** – uridylation at intermediate tail lengths
+
+---
+
+## (7) Experimental strategy to test whether candidate enzymes recognize and act on the CRE
+
+### Strategy
+1. **Loss-of-function**
+   - CRISPR or siRNA knockdown per enzyme
+   - Measure CRE-dependent stabilization
+2. **Gain-of-function**
+   - Overexpression of WT vs. catalytic mutants
+3. **Tethering assays**
+   - MS2/PP7 recruitment of enzymes to CRE
+4. **CLIP-seq**
+   - Confirm physical interaction with CRE
+5. **Rescue experiments**
+   - Reintroduce enzyme in knockout background
+
+**Readouts**
+- mRNA half-life
+- Poly(A) length/composition
+- Protein expression
+
+---
+
+## (8) Downstream molecular biology after identification of a key enzyme
+
+### Follow-up Directions
+- **Cofactor requirements:** metal ions, RBPs
+- **Substrate specificity:** CRE mutational scanning
+- **Localization:** stress granules, P-bodies
+- **Regulation:** phosphorylation, signaling pathways
+- **Physiology:** stress response, antiviral immunity
+- **Industrial use:** stabilized therapeutic mRNA design
+
+---
+
+## (9) Academic manuscript draft (≤10 figures, ~3000 words)
+
+### Title
+Viral cis-Regulatory Element–Mediated Poly(A) Tail Remodeling Enhances mRNA Stability in Human Cells
+
+### Abstract
+*(~250 words summarizing CRE function, nanopore analysis, enzyme identification, and implications)*
+
+### Sections
+1. Introduction  
+2. Experimental Design and dRNA-seq Strategy  
+3. Poly(A) Tail Length Remodeling by Viral CRE  
+4. Detection of Mixed Poly(A) Tails by Nanopore Signal Analysis  
+5. Host Enzymes Mediating CRE-Dependent Stabilization  
+6. Mechanistic Model  
+7. Discussion and Implications  
+8. Materials and Methods  
+
+### Figures (≤10)
+1. Experimental overview  
+2. Expression and stability assay  
+3. Poly(A) length distributions  
+4. Current signal deviations  
+5. Non-A base composition  
+6. Active vs. inactive comparison  
+7. Enzyme perturbation effects  
+8. CRE mutagenesis  
+9. Mechanistic model schematic  
+
+### Limitation Statement
+All quantitative conclusions are contingent on successful processing of the provided POD5 and BAM files; the present draft reflects an analysis-ready framework rather than finalized numerical outcomes.
+
+---
+
+**End of Answer**
+
+---
+
+# Task
+Critically evaluate the completed answer in relation to the problem, and include BOTH:
+
+1) **Reliability score (0-100)**: a single integer reflecting how well the answer satisfies the requirements and how well-supported it is.
+2) **Critiques / limitations / risks**: missing requirements, weak evidence, assumptions, reproducibility/executability risks, data dependency, etc.
+
+Additional requirement:
+- This output will be appended to `answer_problem_X.txt`, so write it as a **standalone review section** (do not rewrite the answer).
+- **Write in English.**
+
+## Guidelines
+- Be precise and technical rather than vague.
+- Reference specific parts or claims of the report when possible.
+- Frame critiques in neutral, academic language.
+- Do not rewrite the report or propose new experiments unless pointing out their absence as a limitation.
+
+# Output
+Follow this format exactly:
+
+## Reliability Score
+- Score: <integer 0-100>
+- Rationale (3-6 lines): key reasons for the score
+
+## Critiques / Limitations / Risks (in priority order)
+1. ...
+2. ...
+3. ...
+
+## Final Short Summary to Attach
+- ...

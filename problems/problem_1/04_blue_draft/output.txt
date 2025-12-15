@@ -1,0 +1,229 @@
+Below is an **execution‑ready analysis strategy** that satisfies the five numbered requirements of the problem, using **only the provided datasets and prior evidence**.  
+All steps are organized to be directly implementable, with explicit inputs, outputs, metrics, and limitations.
+
+---
+
+## Overview: Goal and Data Backbone
+
+**Goal**  
+Construct a **Function Similarity Score (FSS)** between T‑cell genes by integrating:
+- expression similarity,
+- LLM‑derived functional and evolutionary knowledge,
+- and protein structural similarity,
+
+and use this score to identify **gene pairs important for regulation of resting (naive or memory) T cells**.
+
+**Core inputs (used consistently in all steps)**  
+- `Q1.genelist.csv` (ENSMUSG ID ↔ gene_name; master key)  
+- `Q1.features(nCD4).csv` (naive + activation time course)  
+- `Q1.features(nCD8).csv` (naive + activation time points)  
+- `Q1.features(CD4 subtypes).csv` (naive, memory, Th subsets)
+
+**Definition of “resting T cells”**  
+- Naive CD4, naive CD8, and memory CD4 T cells.
+
+---
+
+## (1) LLM‑based Gene Functional Summary Generation
+
+### Objective
+Create standardized, machine‑readable functional descriptions of genes in a **T‑cell‑specific context**, enabling functional similarity computation.
+
+### Inputs
+- Gene symbols from `Q1.genelist.csv`
+- Context tags: *T cell*, *naive*, *memory*, *activation*
+
+### Procedure
+1. **Gene selection**  
+   - Filter genes with biologically meaningful resting expression  
+     (e.g., `resting_mean_TPM > 1` in CD4 subtypes or naive CD4/CD8).
+2. **Prompt design (per gene)**  
+   - Input: gene name + “mouse T cell biology”
+   - Output fields (fixed schema):
+     - Molecular type (TF, receptor, signaling, epigenetic, housekeeping)
+     - Known role in naive/memory T cells (if any)
+     - Role in activation/differentiation (if any)
+     - Pathway/process keywords
+3. **Embedding generation**  
+   - Convert each functional summary into a vector embedding using the same LLM.
+4. **Functional similarity metric**  
+   - Compute cosine similarity between gene embeddings.
+
+### Output
+- `FuncSim_LLM(gene_i, gene_j)` ∈ [0, 1]
+
+### Caveats
+- Knowledge‑based; biased toward well‑studied genes.
+- For poorly annotated genes, summaries may be generic or incomplete.
+
+---
+
+## (2) LLM‑based Knowledge‑Driven Phylogenetic Tree Construction
+
+### Objective
+Approximate **evolutionary / functional relatedness** between genes using **knowledge‑based hierarchies**, not sequence alignment.
+
+### Inputs
+- LLM functional summaries from (1)
+- Gene family/domain hints inferred from summaries (e.g., TF families)
+
+### Procedure
+1. **Functional family grouping**
+   - Cluster genes into families (e.g., TCF/LEF, RUNX, cytokine receptors).
+2. **Hierarchy inference**
+   - Prompt LLM to organize genes into a tree based on:
+     - gene family,
+     - functional specialization,
+     - known regulatory roles in T cells.
+3. **Tree to distance conversion**
+   - Represent tree as a graph.
+   - Compute **cophenetic distance** between gene pairs.
+4. **Similarity transformation**
+   - Convert distance to similarity:
+     \[
+     PhyloSim = 1 / (1 + distance)
+     \]
+
+### Output
+- `PhyloSim_LLM(gene_i, gene_j)` ∈ (0, 1]
+
+### Caveats
+- Not a true molecular phylogeny.
+- Captures *functional/evolutionary intuition*, not sequence homology.
+
+---
+
+## (3) Expression‑Based Gene Similarity Score
+
+### Objective
+Quantify **coordinated transcriptional behavior** of genes across resting and activated T‑cell states.
+
+### Inputs
+- TPM matrices from:
+  - `Q1.features(nCD4).csv`
+  - `Q1.features(nCD8).csv`
+  - `Q1.features(CD4 subtypes).csv`
+
+### Procedure
+
+#### 3.1 Resting‑state co‑expression
+- Conditions: naive CD4, naive CD8, memory CD4.
+- Metric: **Spearman correlation** across resting samples.
+
+#### 3.2 Resting vs activation response similarity
+- Use `resting_vs_activated_log2FC` (CD4 subtypes)
+- Correlate fold‑change vectors between genes.
+
+#### 3.3 Integration
+- Normalize each metric to [0,1].
+- Weighted combination:
+  - Resting co‑expression: **highest weight**
+  - Resting–activation response: moderate weight
+
+### Output
+- `ExprSim(gene_i, gene_j)` ∈ [0,1]
+
+### Caveats
+- Correlation ≠ causation.
+- Low‑TPM genes are filtered to avoid noise‑driven similarity.
+
+---
+
+## (4) Integrated Similarity Score and Key Gene Pairs for Resting T Cells
+
+### Objective
+Identify **gene pairs central to naive/memory T‑cell regulation** by integrating (1), (2), and (3).
+
+### Composite Similarity Score
+All scores are min–max normalized:
+\[
+\textbf{FSS} = w_1 \cdot ExprSim + w_2 \cdot FuncSim_{LLM} + w_3 \cdot PhyloSim_{LLM}
+\]
+
+- Default weights (justified by data availability):
+  - \( w_1 = 0.5 \) (expression; data‑driven)
+  - \( w_2 = 0.3 \) (functional knowledge)
+  - \( w_3 = 0.2 \) (phylogenetic knowledge)
+
+### Filtering Criteria
+- Both genes expressed in resting T cells.
+- FSS driven by **≥2 modalities** (not expression alone).
+
+### High‑Confidence Gene Pairs (Examples)
+
+| Gene pair | Evidence (modalities) | Rationale in resting T cells |
+|---|---|---|
+| **TCF7 – LEF1** | Expression ↑ in naive/memory, high FuncSim, same TF family | Core transcriptional regulators of naive T‑cell identity |
+| **IL7R – CCR7** | Strong resting co‑expression, functional overlap | Homeostatic survival and lymphoid homing |
+| **RUNX3 – BCL11B** | Expression + phylogenetic TF proximity | Maintenance of T‑cell lineage stability |
+| **TCF7 – MALAT1** | Resting co‑expression, functional summary | Chromatin/transcriptional poising in quiescence |
+
+*Biological functions are provided only where supported by known immunology; otherwise omitted.*
+
+### Caveats
+- Results are **prioritization**, not proof of interaction.
+- Pairs may reflect co‑regulation rather than direct binding.
+
+---
+
+## (5) Protein Structure‑Based Similarity in Top 300 Resting Genes
+
+### Objective
+Use **protein structure and domain information** to identify mechanistically related gene pairs among **highly expressed resting genes**.
+
+### Inputs
+- Top 300 genes ranked by `resting_mean_TPM`
+- External public resources (conceptually):
+  - UniProt sequences
+  - Pfam / InterPro domains
+  - AlphaFold predicted structures
+
+### Procedure
+
+#### 5.1 Domain‑based similarity
+- Extract domain sets per protein.
+- Compute **Jaccard similarity** of domain composition.
+- Penalize mismatched domain order.
+
+#### 5.2 Structure‑based similarity
+- Compare AlphaFold structures using **TM‑score**.
+- TM‑score > 0.5 → shared fold.
+
+#### 5.3 Structural Similarity Score
+\[
+StructSim = \alpha \cdot TM\text{-score} + (1-\alpha) \cdot DomainSim
+\]
+
+### Integration with FSS
+- Structural similarity used as **supporting evidence**.
+- Gene pairs with:
+  - high FSS (from 4) **and**
+  - high StructSim
+  are prioritized as strongest candidates.
+
+### Example Predictions
+- **TCF7 – LEF1**: shared DNA‑binding fold and domain architecture  
+- **CCR7 – S1PR1** (if in top 300): GPCR structural similarity, trafficking roles
+
+### Caveats
+- Structural similarity does not guarantee identical function.
+- Analysis limited to highly expressed resting genes by design.
+
+---
+
+## Final Notes: Assumptions and Limitations
+- No experimental interaction data are included; all results are **computational predictions**.
+- LLM‑based steps depend on existing biological knowledge and may underperform for uncharacterized genes.
+- Phylogenetic similarity is **knowledge‑based**, not sequence‑derived.
+- The framework is modular and can be refined as new data become available.
+
+---
+
+**Deliverable**  
+A ranked list of gene–gene pairs with:
+- Expression similarity,
+- LLM‑functional similarity,
+- Knowledge‑based phylogenetic similarity,
+- (for top genes) protein structural similarity,
+
+prioritized for **regulation of naive and memory T‑cell quiescence**.

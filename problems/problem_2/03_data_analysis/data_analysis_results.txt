@@ -1,0 +1,5 @@
+{
+  "status": "error",
+  "reason": "Could not resolve files from DB_list: active-control.bam, active-cre.pod5, active-cre.bam, active-control.pod5",
+  "problem_id": "rna_virus_cre_polyA_stability"
+}
