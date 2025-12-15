@@ -5,3 +5,7 @@ python-dotenv
 pydantic
 requests
 ipykernel
+pandas
+numpy
+openpyxl
+pyarrow

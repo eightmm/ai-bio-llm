@@ -1,0 +1,5 @@
+data,source
+nCD4,"J Henriksson et al., Cell (2019)"
+nCD8,SS Hwang Lab
+CD4 subtype,"Harman CC et al., PNAS (2021)"
+"Notice: Even with version-matched Ensembl IDs and gene names, certain genes appear in one dataset but not in others because the datasets originate from different sources.",

@@ -4,46 +4,72 @@ import json
 import time
 import re
 import shutil
+import sys
+import argparse
+import contextlib
+import time as _time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
+import contextvars
 from pathlib import Path
 
 # Import Agents from src
-from src.brain.brain import BrainAgent
-from src.search.search_agent import SearchAgent
-from src.blue.blue_agent import BlueAgent
-from src.red.red_agent import RedAgent
-from src.blue.bluex_agent import BlueXAgent
+from src.bio_agents.brain.brain import BrainAgent
+from src.bio_agents.search.search_agent import SearchAgent
+from src.bio_agents.blue.blue_agent import BlueAgent
+from src.bio_agents.red.red_agent import RedAgent
+from src.bio_agents.bluex.bluex_agent import BlueXAgent
+from src.bio_agents.data_analyst import DataAnalystAgent
+from src.bio_agents.answer import AnswerAgent
 
 # Configuration
-INPUT_DIR = "problems/given"
-OUTPUT_BASE_DIR = "outputs"
-FINAL_OUTPUT_BASE_DIR = "problems/results"
-SRC_DIR = Path("src")
+INPUT_DIR = "problems"
+# OUTPUT_BASE_DIR removed; outputs will be local to problem directories
+SRC_DIR = Path("src/bio_agents")
 
 # Template Paths
 TEMPLATE_PATHS = {
+    "brain": {
+        "system": SRC_DIR / "brain" / "prompts" / "system_prompt.md",
+    },
     "search": {
-        "system": SRC_DIR / "search" / "search_system.md",
-        "user": SRC_DIR / "search" / "search_user_template.md"
+        "system": SRC_DIR / "search" / "prompts" / "search_system.md",
+        "user": SRC_DIR / "search" / "prompts" / "search_user_template.md"
     },
     "blue": {
-        "system": SRC_DIR / "blue" / "blue_system.md",
-        "user": SRC_DIR / "blue" / "blue_user_template.md"
+        "system": SRC_DIR / "blue" / "prompts" / "blue_system.md",
+        "user": SRC_DIR / "blue" / "prompts" / "blue_user_template.md"
     },
     "red": {
-        "system": SRC_DIR / "red" / "red_system.md",
-        "user": SRC_DIR / "red" / "red_user_template.md"
+        "system": SRC_DIR / "red" / "prompts" / "red_system.md",
+        "user": SRC_DIR / "red" / "prompts" / "red_user_template.md"
     },
     "bluex": {
-        "system": SRC_DIR / "blue" / "bluex_system.md",
-        "user": SRC_DIR / "blue" / "bluex_user_template.md"
+        "system": SRC_DIR / "bluex" / "prompts" / "bluex_system.md",
+        "user": SRC_DIR / "bluex" / "prompts" / "bluex_user_template.md"
+    },
+    "answer": {
+        "system": SRC_DIR / "answer" / "prompts" / "answer_system.md",
+        "user": SRC_DIR / "answer" / "prompts" / "answer_user_template.md",
     }
 }
 
-DUMMY_DATA_ANALYSIS = Path("outputs/dummy_data_analysis.txt")
+# Dummy file location
+DUMMY_DATA_ANALYSIS = Path(INPUT_DIR) / "dummy_data_analysis.txt"
 
 def ensure_dirs(problem_output_dir):
-    for agent in ["brain", "search", "blue", "red", "bluex", "final_review"]:
-        (problem_output_dir / agent).mkdir(parents=True, exist_ok=True)
+    # Kept for compatibility; current pipeline uses numbered step directories.
+    for step_dir in [
+        "01_brain",
+        "02_search",
+        "03_data_analysis",
+        "04_blue_draft",
+        "05_red_critique",
+        "06_bluex_revision",
+        "07_red_review",
+        "08_answer",
+    ]:
+        (problem_output_dir / step_dir).mkdir(parents=True, exist_ok=True)
 
 def save_sub_problem_json(output_path, brain_data, sub_problem):
     """
@@ -57,165 +83,478 @@ def save_sub_problem_json(output_path, brain_data, sub_problem):
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
-def run_pipeline(file_path):
+
+_stdout_lock = threading.Lock()
+_suppress_stdout_flag = contextvars.ContextVar("suppress_stdout", default=False)
+_ORIGINAL_STDOUT = sys.stdout
+
+
+class _StdoutRouter:
+    """
+    Thread/context-aware stdout router.
+
+    - When suppress flag is set in the current context, stdout writes are discarded.
+    - Otherwise, writes are forwarded to the original stdout with a global lock to
+      avoid interleaved writes across threads.
+
+    This avoids changing sys.stdout per-thread (which is not thread-safe).
+    """
+
+    def write(self, s: str) -> int:
+        if _suppress_stdout_flag.get():
+            return len(s)
+        with _stdout_lock:
+            return _ORIGINAL_STDOUT.write(s)
+
+    def flush(self) -> None:
+        if _suppress_stdout_flag.get():
+            return
+        with _stdout_lock:
+            return _ORIGINAL_STDOUT.flush()
+
+    def isatty(self) -> bool:
+        return getattr(_ORIGINAL_STDOUT, "isatty", lambda: False)()
+
+    def fileno(self) -> int:
+        return getattr(_ORIGINAL_STDOUT, "fileno")()
+
+    def __getattr__(self, name: str):
+        return getattr(_ORIGINAL_STDOUT, name)
+
+
+# Install router once so suppression works safely under threading.
+if not isinstance(sys.stdout, _StdoutRouter):
+    sys.stdout = _StdoutRouter()
+
+
+@contextlib.contextmanager
+def suppress_stdout(enabled: bool):
+    """
+    Suppress stdout (prints) when enabled=True, in a thread-safe way.
+    Stderr is intentionally not suppressed so exceptions remain visible.
+    """
+    if not enabled:
+        yield
+        return
+
+    token = _suppress_stdout_flag.set(True)
+    try:
+        yield
+    finally:
+        _suppress_stdout_flag.reset(token)
+
+
+_status_lock = threading.Lock()
+_current_problem = contextvars.ContextVar("current_problem", default="")
+
+
+def status(message: str) -> None:
+    """
+    Minimal progress output to stderr so it remains visible even when stdout is suppressed.
+    """
+    prefix = _current_problem.get()
+    line = f"[{prefix}] {message}" if prefix else message
+    with _status_lock:
+        print(line, file=sys.stderr, flush=True)
+
+
+@contextlib.contextmanager
+def progress_step(label: str):
+    """
+    Emit minimal progress to stderr with elapsed time.
+    """
+    start = _time.time()
+    status(f"{label} ...")
+    try:
+        yield
+    finally:
+        elapsed = _time.time() - start
+        status(f"{label} done ({elapsed:.1f}s)")
+
+
+def run_pipeline(file_path, *, verbose: bool = False):
     file_name = os.path.basename(file_path)
-    print(f"\n==================================================")
-    print(f"[{file_name}] Starting Pipeline")
-    print(f"==================================================")
+    token = _current_problem.set(os.path.splitext(file_name)[0])
+    pipeline_start = _time.time()
+    status(f"\n[{file_name}] Pipeline start")
 
     try:
         # 1. Read Input
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        # 2. Brain Phase
-        print(f"[*] Brain Agent: Analyzing...")
-        brain_agent = BrainAgent()
-        brain_result = brain_agent.analyze_question(content)
+        # Determine Problem ID from filename (e.g., problem_1.txt -> problem_1)
+        problem_id = os.path.splitext(file_name)[0]
         
-        # Determine Problem ID & Directory
-        problem_id = brain_result.problem_id
-        if not problem_id:
-            problem_id = os.path.splitext(file_name)[0]
-        
-        # Base Output Directory for this problem
-        problem_output_dir = Path(OUTPUT_BASE_DIR) / problem_id
-        problem_output_dir.mkdir(parents=True, exist_ok=True)
+        # Base Output Directory is the same as the problem file's directory
+        # structure: problems/problem_1/01_search/ ...
+        problem_output_dir = Path(file_path).parent
 
+        # 2. Brain Phase
+        step1_dir = problem_output_dir / "01_brain"
+        step1_dir.mkdir(parents=True, exist_ok=True)
+
+        with progress_step("[1/7] Brain: analyzing question"):
+            with suppress_stdout(not verbose):
+                brain_agent = BrainAgent(system_prompt_path=TEMPLATE_PATHS["brain"]["system"])
+                brain_result = brain_agent.analyze_question(content)
+        
         # Save Brain Result (Global context)
-        brain_output_path = problem_output_dir / "brain_decomposition.json"
+        brain_output_path = step1_dir / "brain_decomposition.json"
         with open(brain_output_path, "w", encoding="utf-8") as f:
             f.write(brain_result.model_dump_json(indent=2))
-        print(f"[*] Brain Analysis saved to {brain_output_path}")
+        status(f"      saved: {brain_output_path}")
 
         # Initialize Agents
-        search_agent = SearchAgent()
-        blue_agent = BlueAgent()
-        red_agent = RedAgent()
-        bluex_agent = BlueXAgent()
+        with suppress_stdout(not verbose):
+            search_agent = SearchAgent()
+            data_analyst_agent = DataAnalystAgent()
+            blue_agent = BlueAgent()
+            red_agent = RedAgent()
+            bluex_agent = BlueXAgent()
+            answer_agent = AnswerAgent()
 
-        # 3. Process each Sub-problem
-        for i, sub in enumerate(brain_result.sub_problems, 1):
-            sub_id = sub.id
-            safe_sub_id = str(sub_id).replace("/", "_").replace("\\", "_")
-            
-            # Sub-problem Directory: outputs/{problem_id}/{sub_id}/
-            # We group all steps for this sub-problem here
-            sub_problem_dir = problem_output_dir / f"{safe_sub_id}"
-            sub_problem_dir.mkdir(parents=True, exist_ok=True)
-            
-            print(f"\n--- Processing Sub-problem {i}: {sub_id} ---")
-            print(f"    Context Dir: {sub_problem_dir}")
+        # --- Step 1: Search ---
+        step2_dir = problem_output_dir / "02_search"
+        with progress_step("[2/7] SearchAgent: generating literature report"):
+            with suppress_stdout(not verbose):
+                search_agent.run_for_problem(
+                    brain_path=brain_output_path,
+                    system_path=TEMPLATE_PATHS["search"]["system"],
+                    user_template_path=TEMPLATE_PATHS["search"]["user"],
+                    output_dir=step2_dir
+                )
+        search_result_file = step2_dir / "output.txt"
+        status(f"      saved: {step2_dir / 'user_prompt.txt'}")
+        status(f"      saved: {step2_dir / 'system_prompt.md'}")
+        status(f"      saved: {search_result_file}")
+        
+        if not search_result_file.exists():
+            # Backward-compatible fallback
+            legacy = step2_dir / "search_results.txt"
+            if legacy.exists():
+                search_result_file = legacy
+            else:
+                raise FileNotFoundError(f"[Error] Search result not found at {search_result_file}.")
 
-            # Prepare Sub-problem JSON File (Step 0)
-            # We save this in the sub-problem folder for easy reference
-            sub_problem_input_file = sub_problem_dir / "00_problem_context.json"
-            save_sub_problem_json(sub_problem_input_file, brain_result, sub)
+        # --- Step 1.5: Data Analysis ---
+        step3_dir = problem_output_dir / "03_data_analysis"
+        step3_dir.mkdir(parents=True, exist_ok=True)
 
-            # --- Step 1: Search ---
-            print(f"[1. Search] Searching literature...")
-            step1_dir = sub_problem_dir / "01_search"
-            search_agent.run_for_sub_problem(
-                sub_problem_path=sub_problem_input_file,
-                system_path=TEMPLATE_PATHS["search"]["system"],
-                user_template_path=TEMPLATE_PATHS["search"]["user"],
-                output_dir=step1_dir
-            )
-            # Find the result file (SearchAgent saves as results_{safe_id}.txt)
-            search_result_file = step1_dir / f"results_{safe_sub_id}.txt"
-            
-            if not search_result_file.exists():
-                print(f"[Error] Search result not found at {search_result_file}. Skipping.")
-                continue
+        # Always produce a stable downstream artifact (text) even if analysis is skipped/errored.
+        data_analysis_results_txt = step3_dir / "data_analysis_results.txt"
+        data_analysis_file = data_analysis_results_txt  # downstream uses this path
 
-            # --- Step 2: Blue (Initial Draft) ---
-            print(f"[2. Blue] Writing initial draft...")
-            step2_dir = sub_problem_dir / "02_blue_draft"
-            blue_agent.run_for_sub_problem(
-                sub_problem_path=sub_problem_input_file,
-                system_path=TEMPLATE_PATHS["blue"]["system"],
-                user_template_path=TEMPLATE_PATHS["blue"]["user"],
-                full_report_path=search_result_file,
-                data_analysis_results_path=DUMMY_DATA_ANALYSIS,
-                output_dir=step2_dir
-            )
-            blue_result_file = step2_dir / f"blue_results_{safe_sub_id}.txt"
+        analysis_result = None
+        with progress_step("[3/7] DataAnalystAgent: analyzing referenced data files"):
+            try:
+                with suppress_stdout(not verbose):
+                    analysis_result = data_analyst_agent.run_for_problem(brain_output_path)
+            except Exception as e:
+                status(f"      warning: data analysis failed; continuing with N/A ({type(e).__name__}: {e})")
+                analysis_result = None
 
-            # --- Step 3: Red (Critique) ---
-            print(f"[3. Red] Critiquing initial draft...")
-            step3_dir = sub_problem_dir / "03_red_critique"
-            red_agent.run_for_sub_problem(
-                sub_problem_path=sub_problem_input_file,
-                system_path=TEMPLATE_PATHS["red"]["system"],
-                user_template_path=TEMPLATE_PATHS["red"]["user"],
-                blue_report_path=blue_result_file,
-                output_dir=step3_dir
-            )
-            red_result_file = step3_dir / f"red_results_{safe_sub_id}.txt"
+        # Move/copy the agent-produced artifact into 02_data_analysis/ when available,
+        # but always write a human-readable .txt summary for downstream prompts.
+        try:
+            if isinstance(analysis_result, dict):
+                output_path_str = analysis_result.get("output_path", "")
+                output_obj = analysis_result.get("output", None)
 
-            # --- Step 4: BlueX (Revision) ---
-            print(f"[4. BlueX] Revising report...")
-            step4_dir = sub_problem_dir / "04_bluex_revision"
-            bluex_agent.run_for_sub_problem(
-                sub_problem_path=sub_problem_input_file,
-                system_path=TEMPLATE_PATHS["bluex"]["system"],
-                user_template_path=TEMPLATE_PATHS["bluex"]["user"],
-                full_report_path=blue_result_file,
-                red_report_path=red_result_file,
-                data_analysis_results_path=DUMMY_DATA_ANALYSIS,
-                output_dir=step4_dir
-            )
-            # BlueX saves with same naming convention as BlueAgent
-            bluex_result_file = step4_dir / f"blue_results_{safe_sub_id}.txt"
+                # Store the original analysis output file under 02_data_analysis/ if it exists
+                if output_path_str:
+                    produced_path = Path(output_path_str)
+                    if produced_path.exists():
+                        ext = produced_path.suffix or ".txt"
+                        moved_path = step3_dir / f"data_analysis{ext}"
+                        if produced_path.resolve() != moved_path.resolve():
+                            try:
+                                shutil.move(str(produced_path), str(moved_path))
+                            except Exception:
+                                shutil.copy2(str(produced_path), str(moved_path))
+                                os.remove(str(produced_path))
+                        status(f"      saved: {moved_path}")
 
-            # --- Step 5: Red (Final Review) ---
-            print(f"[5. Red] Final review...")
-            step5_dir = sub_problem_dir / "05_final_review"
-            red_agent.run_for_sub_problem(
-                sub_problem_path=sub_problem_input_file,
-                system_path=TEMPLATE_PATHS["red"]["system"],
-                user_template_path=TEMPLATE_PATHS["red"]["user"],
-                blue_report_path=bluex_result_file,
-                output_dir=step5_dir
-            )
-            final_review_file = step5_dir / f"red_results_{safe_sub_id}.txt"
-            
-            # --- Step 6: Save Final Results (Archiving) ---
-            final_problems_dir = Path(FINAL_OUTPUT_BASE_DIR) / problem_id
-            final_problems_dir.mkdir(parents=True, exist_ok=True)
-            
-            target_report = final_problems_dir / f"{safe_sub_id}_report.txt"
-            target_review = final_problems_dir / f"{safe_sub_id}_review.txt"
-            
-            shutil.copy(bluex_result_file, target_report)
-            shutil.copy(final_review_file, target_review)
-            
-            print(f"[Done] Sub-problem {sub_id} complete. Artifacts stored in {sub_problem_dir}")
+                # Build text for downstream consumption
+                if isinstance(output_obj, str):
+                    text = output_obj
+                elif isinstance(output_obj, (dict, list)):
+                    text = json.dumps(output_obj, indent=2, ensure_ascii=False)
+                elif output_obj is None:
+                    text = "N/A: No specific data analysis was produced."
+                else:
+                    text = str(output_obj)
+            else:
+                # No result (exception or unexpected return)
+                with open(DUMMY_DATA_ANALYSIS, "r", encoding="utf-8") as src:
+                    text = src.read()
 
-        print(f"\n[Success] Pipeline finished for {file_name}")
+            with open(data_analysis_results_txt, "w", encoding="utf-8") as f:
+                f.write(text)
+            status(f"      saved: {data_analysis_results_txt}")
+
+        except Exception as e:
+            # Last-resort fallback: ensure file exists
+            status(f"      warning: failed to write analysis summary; using dummy ({type(e).__name__}: {e})")
+            with open(DUMMY_DATA_ANALYSIS, "r", encoding="utf-8") as src:
+                dummy_text = src.read()
+            with open(data_analysis_results_txt, "w", encoding="utf-8") as dst:
+                dst.write(dummy_text)
+            status(f"      saved: {data_analysis_results_txt}")
+
+        # --- Step 2: Blue (Initial Draft) ---
+        with progress_step("[4/7] BlueAgent: writing initial draft"):
+            step4_dir = problem_output_dir / "04_blue_draft"
+            with suppress_stdout(not verbose):
+                blue_agent.run_for_problem(
+                    brain_path=brain_output_path,
+                    system_path=TEMPLATE_PATHS["blue"]["system"],
+                    user_template_path=TEMPLATE_PATHS["blue"]["user"],
+                    full_report_path=search_result_file,
+                    data_analysis_results_path=data_analysis_file,
+                    output_dir=step4_dir
+                )
+        blue_result_file = step4_dir / "output.txt"
+        status(f"      saved: {step4_dir / 'user_prompt.txt'}")
+        status(f"      saved: {step4_dir / 'system_prompt.md'}")
+        status(f"      saved: {blue_result_file}")
+        if not blue_result_file.exists():
+            legacy = step4_dir / "blue_results.txt"
+            if legacy.exists():
+                blue_result_file = legacy
+
+        # --- Step 3: Red (Critique) ---
+        with progress_step("[5/7] RedAgent: critiquing draft"):
+            step5_dir = problem_output_dir / "05_red_critique"
+            with suppress_stdout(not verbose):
+                red_agent.run_for_problem(
+                    brain_path=brain_output_path,
+                    system_path=TEMPLATE_PATHS["red"]["system"],
+                    user_template_path=TEMPLATE_PATHS["red"]["user"],
+                    blue_report_path=blue_result_file,
+                    output_dir=step5_dir
+                )
+        red_result_file = step5_dir / "output.txt"
+        status(f"      saved: {step5_dir / 'user_prompt.txt'}")
+        status(f"      saved: {step5_dir / 'system_prompt.md'}")
+        status(f"      saved: {red_result_file}")
+        if not red_result_file.exists():
+            legacy = step5_dir / "red_results.txt"
+            if legacy.exists():
+                red_result_file = legacy
+
+        # --- Step 4: BlueX (Revision) ---
+        with progress_step("[6/7] BlueXAgent: revising using red feedback"):
+            step6_dir = problem_output_dir / "06_bluex_revision"
+            with suppress_stdout(not verbose):
+                bluex_agent.run_for_problem(
+                    brain_path=brain_output_path,
+                    system_path=TEMPLATE_PATHS["bluex"]["system"],
+                    user_template_path=TEMPLATE_PATHS["bluex"]["user"],
+                    full_report_path=blue_result_file,
+                    red_report_path=red_result_file,
+                    data_analysis_results_path=data_analysis_file,
+                    output_dir=step6_dir
+                )
+        bluex_result_file = step6_dir / "output.txt"
+        status(f"      saved: {step6_dir / 'user_prompt.txt'}")
+        status(f"      saved: {step6_dir / 'system_prompt.md'}")
+        status(f"      saved: {bluex_result_file}")
+        if not bluex_result_file.exists():
+            legacy = step6_dir / "blue_results.txt"
+            if legacy.exists():
+                bluex_result_file = legacy
+
+        # --- Step 5: Red (Final Review) ---
+        with progress_step("[7/7] RedAgent: final review"):
+            step7_dir = problem_output_dir / "07_red_review"
+            with suppress_stdout(not verbose):
+                red_agent.run_for_problem(
+                    brain_path=brain_output_path,
+                    system_path=TEMPLATE_PATHS["red"]["system"],
+                    user_template_path=TEMPLATE_PATHS["red"]["user"],
+                    blue_report_path=bluex_result_file,
+                    output_dir=step7_dir
+                )
+        final_review_file = step7_dir / "output.txt"
+        status(f"      saved: {step7_dir / 'user_prompt.txt'}")
+        status(f"      saved: {step7_dir / 'system_prompt.md'}")
+        status(f"      saved: {final_review_file}")
+        if not final_review_file.exists():
+            legacy = step7_dir / "red_results.txt"
+            if legacy.exists():
+                final_review_file = legacy
+
+        # --- Step 6: Answer (Final Deliverable) ---
+        with progress_step("[8/8] AnswerAgent: composing final deliverable"):
+            step8_dir = problem_output_dir / "08_answer"
+            with suppress_stdout(not verbose):
+                answer_agent.run_for_problem(
+                    brain_path=brain_output_path,
+                    system_path=TEMPLATE_PATHS["answer"]["system"],
+                    user_template_path=TEMPLATE_PATHS["answer"]["user"],
+                    search_output_path=search_result_file,
+                    completed_answer_path=bluex_result_file,
+                    red_review_path=final_review_file,
+                    output_dir=step8_dir,
+                )
+
+        answer_output_file = step8_dir / "output.txt"
+        status(f"      saved: {step8_dir / 'user_prompt.txt'}")
+        status(f"      saved: {step8_dir / 'system_prompt.md'}")
+        status(f"      saved: {answer_output_file}")
+
+        status(f"[Done] Artifacts stored in: {problem_output_dir}")
+
+        # --- Write Final Answer File ---
+        # problems/problem_X/answer_{id}.txt  (e.g., problem_1 -> answer_1.txt)
+        answer_id = problem_id
+        if answer_id.lower().startswith("problem_"):
+            answer_id = answer_id[len("problem_"):]
+        if not answer_id:
+            answer_id = problem_id
+
+        final_answer_path = problem_output_dir / f"answer_{answer_id}.txt"
+        if answer_output_file.exists():
+            shutil.copy2(str(answer_output_file), str(final_answer_path))
+        else:
+            # Fallback: keep previous behavior if agent output is missing
+            with open(final_answer_path, "w", encoding="utf-8") as f:
+                f.write("Error: AnswerAgent output not found.\n")
+
+        status(f"[Success] Final answer saved: {final_answer_path}")
+        status(f"[Total] {file_name} finished in {(_time.time() - pipeline_start):.1f}s")
 
     except Exception as e:
-        print(f"[Error] Pipeline failed for {file_name}: {e}")
+        status(f"[Error] Pipeline failed for {file_name}: {e}")
         import traceback
         traceback.print_exc()
+    finally:
+        _current_problem.reset(token)
 
 def main():
+    parser = argparse.ArgumentParser(description="Run the AI Bio LLM pipeline.")
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Show full agent outputs (disables stdout suppression).",
+    )
+    parser.add_argument(
+        "--only",
+        nargs="+",
+        default=None,
+        help=(
+            "Run only specific problem(s). Accepts problem stem (e.g., problem_1), "
+            "filename (problem_1.txt), number (1), or an explicit path."
+        ),
+    )
+    args = parser.parse_args()
+
+    # Ensure dummy data file exists for agents
     if not DUMMY_DATA_ANALYSIS.exists():
-        # Ensure dummy file exists if not already created
         DUMMY_DATA_ANALYSIS.parent.mkdir(parents=True, exist_ok=True)
         with open(DUMMY_DATA_ANALYSIS, "w") as f:
              f.write("N/A: No specific data analysis was requested.")
              
-    txt_files = glob.glob(os.path.join(INPUT_DIR, "*problem_1.txt"))
+    # Look for problem_*.txt in subdirectories (problems/problem_X/problem_X.txt)
+    # Using recursive glob pattern
+    pattern = os.path.join(INPUT_DIR, "**", "problem_*.txt")
+    txt_files = glob.glob(pattern, recursive=True)
+    
     if not txt_files:
-        print(f"No .txt files found in {INPUT_DIR}")
+        status(f"No files matching 'problem_*.txt' found in {INPUT_DIR} and its subdirectories")
         return
 
-    print(f"Found {len(txt_files)} files to process.")
+    # Optional filtering to run only specific problems
+    if args.only:
+        want: set[str] = set()
+        want_paths: set[str] = set()
+
+        for item in args.only:
+            item = str(item).strip().strip("\"'")
+            if not item:
+                continue
+
+            # If it looks like a path, keep it as a path candidate
+            if any(sep in item for sep in ("/", "\\", ":")):
+                want_paths.add(os.path.normpath(item))
+                # Also allow passing just ".../problem_1.txt" and matching by stem
+                base = os.path.basename(item)
+                stem = os.path.splitext(base)[0]
+                if stem:
+                    want.add(stem)
+                continue
+
+            # If number like "1" -> "problem_1"
+            if item.isdigit():
+                want.add(f"problem_{item}")
+                continue
+
+            # If "problem_1.txt" -> "problem_1"
+            if item.lower().endswith(".txt"):
+                want.add(os.path.splitext(item)[0])
+                continue
+
+            # Otherwise treat as stem, e.g. "problem_1"
+            want.add(item)
+
+        filtered: list[str] = []
+        for p in txt_files:
+            norm_p = os.path.normpath(p)
+            stem = os.path.splitext(os.path.basename(p))[0]
+
+            if norm_p in want_paths:
+                filtered.append(p)
+                continue
+
+            if stem in want:
+                filtered.append(p)
+                continue
+
+        # Preserve original discovery order (glob order) while de-duping
+        seen = set()
+        txt_files = [p for p in filtered if not (p in seen or seen.add(p))]
+
+        if not txt_files:
+            status(f"No matching problems for --only={args.only}")
+            status("Available candidates:")
+            for p in sorted(glob.glob(pattern, recursive=True)):
+                status(f"  - {os.path.splitext(os.path.basename(p))[0]} ({p})")
+            return
+
+    status(f"Found {len(txt_files)} files to process: {[os.path.basename(f) for f in txt_files]}")
     
-    # Process sequentially to avoid rate limits and confusion in logs
-    for file_path in txt_files:
-        run_pipeline(file_path)
+    # Process problems (parallel by default when there are multiple files)
+    if len(txt_files) <= 1:
+        for file_path in txt_files:
+            run_pipeline(file_path, verbose=args.verbose)
+        return
+
+    cpu_count = os.cpu_count() or 1
+    if len(txt_files) > cpu_count:
+        max_workers = max(1, cpu_count // 2)
+    else:
+        max_workers = len(txt_files)
+
+    status(f"Running in parallel: jobs={max_workers}")
+
+    failures = 0
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_path = {
+            executor.submit(run_pipeline, file_path, verbose=args.verbose): file_path
+            for file_path in txt_files
+        }
+
+        for future in as_completed(future_to_path):
+            file_path = future_to_path[future]
+            try:
+                future.result()
+            except Exception as e:
+                failures += 1
+                status(f"[Error] Unhandled exception for {os.path.basename(file_path)}: {type(e).__name__}: {e}")
+
+    if failures:
+        status(f"Completed with failures: {failures}/{len(txt_files)}")
 
 if __name__ == "__main__":
     main()
