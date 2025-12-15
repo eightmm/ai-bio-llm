@@ -3,7 +3,7 @@
 This project is a multi-agent pipeline orchestrated by `main.py` to solve complex biology/bioinformatics problems.  
 For each input problem, it runs a fixed sequence of agents and stores artifacts in **numbered step directories** under the problem folder (e.g., `problems/problem_1/`).
 
-For a Korean translation, see `docs/README.ko.md`.
+For a Korean translation, see [docs/README.ko.md](docs/README.ko.md).
 
 ---
 
