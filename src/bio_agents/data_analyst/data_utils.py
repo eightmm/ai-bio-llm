@@ -42,7 +42,23 @@ class FileResolver:
             'by_pattern': []    # all files for pattern matching
         }
 
-        supported_extensions = {'.csv', '.tsv', '.txt', '.tab', '.xlsx', '.xls', '.json', '.parquet'}
+        supported_extensions = {
+            # 테이블 형식
+            '.csv', '.tsv', '.txt', '.tab', '.xlsx', '.xls',
+            # 구조화 데이터
+            '.json', '.parquet', '.feather', '.hdf5', '.h5',
+            # 생물정보학: 시퀀싱 데이터
+            '.fastq', '.fq', '.fasta', '.fa', '.fna', '.ffn', '.faa', '.frn',
+            '.fastq.gz', '.fq.gz', '.fasta.gz', '.fa.gz',
+            # 생물정보학: 얼라인먼트
+            '.sam', '.bam', '.cram',
+            # 생물정보학: Nanopore
+            '.pod5', '.fast5', '.blow5',
+            # 생물정보학: 변이/어노테이션
+            '.vcf', '.vcf.gz', '.bcf', '.gff', '.gff3', '.gtf', '.bed', '.bedGraph', '.bigWig', '.bw',
+            # 생물정보학: 기타
+            '.maf', '.psl', '.chain', '.wig'
+        }
 
         if not self.data_dir.exists():
             return index
@@ -167,10 +183,34 @@ class FileResolver:
         return results
 
     def _match_folder(self, ref: str) -> List[Dict[str, str]]:
-        """Match folder name pattern"""
+        """Match folder name pattern with keyword-based partial matching"""
         results = []
 
-        # Normalize reference: "Q1 features" -> patterns like "Q1.features", "Q1_features"
+        # Extract keywords from reference
+        ref_keywords = re.findall(r'\w+', ref.lower())
+
+        if not ref_keywords:
+            return []
+
+        # Strategy 1: Keyword-based partial matching
+        # e.g., "exhaustion_signature" matches "Q5.exhaustion_signature"
+        for folder_name, paths in self._file_index['by_folder'].items():
+            folder_lower = folder_name.lower()
+
+            # Check if all keywords are present in folder name
+            if all(kw in folder_lower for kw in ref_keywords):
+                for path in paths:
+                    results.append({
+                        'path': str(path),
+                        'name': path.name,
+                        'match_type': 'folder_keyword'
+                    })
+
+                # Return immediately if found
+                if results:
+                    return results
+
+        # Strategy 2: Normalized matching (fallback)
         ref_normalized = ref.lower().replace(' ', '.').replace('_', '.')
 
         for folder_name, paths in self._file_index['by_folder'].items():
@@ -182,7 +222,7 @@ class FileResolver:
                     results.append({
                         'path': str(path),
                         'name': path.name,
-                        'match_type': 'folder'
+                        'match_type': 'folder_normalized'
                     })
 
         return results

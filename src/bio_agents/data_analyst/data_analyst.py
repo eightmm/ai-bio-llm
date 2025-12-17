@@ -8,16 +8,17 @@ Data Analyst Agent
 
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Any
 import pandas as pd
 
 from src.bio_agents.config import Config
 from .data_utils import DataLoader, FileResolver
-from .data_utils import DataLoader, FileResolver
 from .data_executor import CodeExecutor
 from .data_planner import PlannerLLM, AnalysisPlan
 from .data_summarizer import SummarizerLLM
+from .db_list_extractor import DBListExtractor
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,7 @@ class DataAnalystAgent:
         self.file_resolver = FileResolver(Config.DATA_DIR)
         self.data_loader = DataLoader()
         self.code_executor = CodeExecutor()  # No longer takes config arg
+        self.db_list_extractor = DBListExtractor()  # LLM-based extraction
 
         # 3-Stage Pipeline configuration
         self.use_planner = use_planner
@@ -168,6 +170,51 @@ class DataAnalystAgent:
                 db_list_str = sp.get('DB_list', '')
                 refs = [r.strip() for r in db_list_str.split(',') if r.strip()]
                 all_db_refs.update(refs)
+
+        # ========== 2-Stage Extraction Strategy ==========
+
+        # Stage 1: LLM-based extraction (primary method)
+        logger.info("=== Stage 1: LLM-based DB_list extraction ===")
+        llm_extracted_refs = self.db_list_extractor.extract_db_list(brain_output)
+
+        if llm_extracted_refs:
+            all_db_refs.update(llm_extracted_refs)
+            logger.info(f"LLM extracted {len(llm_extracted_refs)} references: {llm_extracted_refs}")
+        else:
+            logger.warning("LLM extraction returned no results")
+
+        # Stage 2: Regex-based extraction (fallback method)
+        # Extract additional data references from original_problem_text using regex
+        text = brain_output.get('original_problem_text', '')
+
+        # 1. Extract Q patterns (Q1, Q2, ..., Q9)
+        q_patterns = set(re.findall(r'Q\d+', text, re.IGNORECASE))
+        regex_refs = set(q_patterns)
+
+        # 2. Extract file names with extensions
+        file_patterns = re.findall(
+            r'([A-Za-z0-9_\-\.]+\.(?:pod5|bam|sam|csv|tsv|fastq|fasta|vcf|bed|bigWig))',
+            text,
+            re.IGNORECASE
+        )
+        regex_refs.update(file_patterns)
+
+        # 3. Extract keywords from bullet points
+        bullet_keywords = re.findall(r'\*\s+([A-Za-z0-9_\-]+)', text)
+        regex_refs.update(bullet_keywords)
+
+        # 4. Create Q-prefixed combinations
+        expanded_refs = set()
+        for ref in regex_refs.copy():
+            expanded_refs.add(ref)
+            # Add Q-prefixed variants (Q5.exhaustion_signature, Q1.features, etc.)
+            for q_num in q_patterns:
+                if not ref.upper().startswith('Q'):  # Don't double-prefix
+                    expanded_refs.add(f"{q_num}.{ref}")
+
+        # Combine LLM and regex results
+        all_db_refs.update(expanded_refs)
+        logger.info(f"Total data references (LLM + Regex): {len(all_db_refs)} candidates")
 
         # Check if any active sub_problems exist
         if not active_sub_problems:
