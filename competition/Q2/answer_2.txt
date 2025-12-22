@@ -1,0 +1,249 @@
+## Objective
+
+Design an integrated predictive framework that:
+
+1. **Predicts cellular aging status or disease progression probability** from TERRA-related multi-omics + imaging data.  
+2. **Quantifies and visualizes the functional contribution of individual RNA modification types** (m6A, pseudouridine/Ψ, m5C) at both *modification-type* and *site/region* resolution.  
+3. **Provides mechanistic interpretability** by linking high-impact molecular features to **telomere maintenance, replication stress, DNA damage response (DDR), chromatin state, and senescence programs**, explicitly distinguishing predictive association from causal proof.
+
+**Scope/assumption (explicit):** no dataset or results were provided; therefore, this is an **execution-ready design** plus a **mandatory pilot validation plan** (Module C) to establish feasibility before any biological claims are made.
+
+---
+
+## Module A: Multimodal Data Integration and Normalization
+
+### A(1) Data types and AI tools used, with scientific justification
+
+**A.1 Data modalities (per subject/sample/timepoint)**  
+- **Transcriptomic**
+  - Bulk total RNA-seq (gene expression + repeat-aware telomeric/subtelomeric read summaries); normalize with variance-stabilizing approaches (e.g., DESeq2 VST where applicable) to stabilize count variance for downstream modeling [9].
+  - scRNA-seq for cell-type/state composition, senescence/DDR programs; integrate and denoise with **scVI** to address batch effects and sparsity in a probabilistic latent space [12].
+- **RNA modification / epitranscriptomic**
+  - m6A: MeRIP-seq / miCLIP and/or direct RNA nanopore; for nanopore-based calls, tools such as **m6Anet/EpiNano** can be used where appropriate training/controls exist [7].
+  - Ψ and m5C: assay-dependent maps; treat each modification type as a distinct feature block with its own reliability/QC covariates.
+- **Chromatin (telomere-associated regulation)**
+  - ChIP-seq for telomere-associated factors and/or histone marks; summarize signals in subtelomeric bins and/or peaks to connect chromatin state with TERRA regulation.
+- **Imaging**
+  - Telomere DNA-FISH + TERRA RNA-FISH; optionally super-resolution morphology metrics.
+  - **Cellpose** for nucleus/spot segmentation with domain calibration and QC [17,20]; extract telomere/TERRA foci and colocalization metrics. Optionally add learned embeddings from a vision encoder fine-tuned in-domain (kept optional due to validation requirements).
+
+**A.2 TERRA-specific constraint: repetitive mapping ambiguity (handled explicitly)**  
+Because TERRA originates from **subtelomeric** regions with repetitive content, locus-resolved assignment is often unreliable. Module A therefore maintains **two parallel feature tracks**:
+
+1. **Locus-agnostic “telomere-proximal bin” features (primary for prediction)**  
+   - Define subtelomeric windows/bins adjacent to chromosome ends (resolution chosen to match assay/mappability).  
+   - Compute bin-level signals for RNA-seq, RNA modifications, and ChIP-seq.  
+   - Attach an **ambiguity/QC vector** per bin (e.g., multi-mapping proxy, MAPQ-derived proxy, coverage/depth).
+
+2. **High-confidence “uniquely anchored” features (secondary, for interpretability when justified)**  
+   - Restrict to signals supported by unique flanks/anchors; label as **high-confidence** and propagate downstream for fine-grained mechanistic hypotheses.
+
+**A.3 Cross-modal integration tool (missing-modality tolerant)**  
+Primary integrator: a **multimodal latent-variable model (multimodal VAE)** with:  
+- Separate encoders per modality producing modality-specific latents,  
+- A shared latent `z_shared` learned via a product-/mixture-of-experts-style aggregation (conceptually aligned with multimodal VAE principles used in scvi-tools’ multimodal designs such as MultiVI) [2],  
+- Modality masks so training/inference remains robust to missing data,  
+- Likelihoods matched to data type (counts vs continuous), plus KL annealing and early stopping to improve training stability.
+
+**Module A outputs**  
+1. `z_shared`: unified sample-level latent representation.  
+2. Optional modality-specific latents `z_m6A`, `z_Psi`, `z_m5C`, `z_expr`, `z_chip`, `z_img`.  
+3. Preserved feature blocks `{m6A_block, Psi_block, m5C_block}` (region-binned primary + optional high-confidence peaks/sites).  
+4. A **QC/ambiguity table** per sample and per block (coverage, ambiguity proxies, replicate concordance where available).
+
+---
+
+### A(2) Alternative design choices and why they were not selected
+
+- **MOFA+ (linear factor model) as the primary integrator** [8]  
+  Not selected as primary because imaging embeddings and modification–expression relationships can be nonlinear and heteroscedastic; MOFA+ is retained as a **required baseline** in Module C.
+- **Simple concatenation + ComBat/Harmony + PCA/UMAP**  
+  Not selected due to fragile missing-modality handling and weaker separation of modification types (m6A vs Ψ vs m5C), which is required for explicit attribution.
+- **End-to-end single monolith model without explicit QC/ambiguity channels**  
+  Not selected because repeat-derived ambiguity is a core constraint in telomeric/subtelomeric biology; QC must be explicit inputs to reduce artifact-driven learning.
+
+---
+
+### A(3) How the module’s outputs feed into the next stage
+
+- `z_shared` becomes the compact context representation for Module B.  
+- Separate modification blocks `{m6A_block, Psi_block, m5C_block}` plus their QC/ambiguity covariates are passed to Module B as distinct inputs to enable **modification-type-specific learning and attribution**.  
+- Imaging and ChIP features (and QC) are passed as additional modality tokens/blocks.
+
+---
+
+## Module B: Predictive Model Design
+
+### B(1) Data types and AI tools used, with scientific justification
+
+**Targets (task-dependent)**  
+- Aging status: binary or ordinal/multi-class.  
+- Disease progression: classification (progressed vs not) and/or time-to-event (survival) when follow-up exists.
+
+**Primary predictor: reliability-aware Multimodal Transformer**  
+- **Tokenization (inputs)**  
+  - Context token: `z_shared` from Module A.  
+  - Block tokens:  
+    - m6A tokens, Ψ tokens, m5C tokens (telomere-proximal bins and/or high-confidence peaks),  
+    - expression tokens (selected genes/signatures + scRNA-derived state scores),  
+    - ChIP tokens (subtelomeric bins/peaks),  
+    - imaging tokens (engineered morphology/colocalization metrics ± validated learned embedding).
+- **Reliability/ambiguity conditioning (critical design choice)**  
+  Each token carries side-channel QC features (coverage, ambiguity proxy, replicate concordance, batch indicators). This allows the model to learn *when not to trust a signal*, reducing spurious attributions from assay artifacts.
+- **Architecture**  
+  - 2–4 Transformer encoder layers, 4–8 attention heads, embedding dimension 128–256 (tunable).  
+  - Modality dropout (mask entire blocks with probability 0.1–0.3) to increase robustness to missing modalities.
+- **Survival/time-to-event option**  
+  When modeling time-to-event, use a survival head (e.g., DeepSurv-style risk modeling) [11,14] or a discrete-time hazard head if visits are irregular.
+- **Calibration (probability correctness)**  
+  Apply post-hoc calibration such as **temperature scaling** on a validation set to improve probability calibration for clinical interpretation [32].
+
+**Module B outputs**  
+- Predicted aging probability/class; predicted progression probability; optionally survival risk score/hazard.  
+- Saved explanation hooks: token embeddings, gradients/Integrated Gradients baselines, and masked-modality outputs for Module C.
+
+---
+
+### B(2) Alternative design choices and why they were not selected
+
+- **XGBoost/Random Forest on concatenated features**  
+  Not selected as primary due to weaker handling of cross-modal interactions and reliability-aware token conditioning; retained as baseline in Module C.
+- **Graph Neural Network over locus–gene networks**  
+  Not selected as primary because TERRA locus assignment can be ambiguous; graph misspecification risks brittle conclusions.
+- **Mixture-of-Experts**  
+  Not selected initially due to additional complexity and training instability risk; can be considered later if strong subtype heterogeneity is demonstrated empirically.
+
+---
+
+### B(3) How the module’s outputs feed into the next stage
+
+- Predictions feed Module C for discrimination, calibration, robustness, and longitudinal validation.  
+- Stored gradients/attribution hooks and masked-modality outputs enable **controlled contribution analysis** for each modification type (m6A vs Ψ vs m5C) and region/bin.
+
+---
+
+## Module C: Model Interpretation and Evaluation
+
+### C(1) Data types and AI tools used, with scientific justification
+
+**C.1 Mandatory feasibility + empirical validation plan (before claims)**  
+- Compare against baselines:  
+  - MOFA+ → logistic/Cox [8]  
+  - Concatenation → XGBoost  
+- Stress tests: missing-modality at inference (drop imaging, drop ChIP, drop each modification type).  
+- Repeat-ambiguity sensitivity: stratify evaluation by QC/ambiguity (high vs low) to ensure performance is not dominated by mapping artifacts.  
+- Calibration + uncertainty: reliability curves/ECE; bootstrap confidence intervals.
+
+**C.2 Quantifying contribution of each RNA modification type (m6A vs Ψ vs m5C) without confounding**  
+Use a **three-part controlled strategy**:
+
+1. **Reliability-matched ablation (type-level, model-agnostic)**  
+   - Mask a modification type by replacing tokens with a fixed “missing” embedding **while preserving QC tokens** (avoids distribution-shift artifacts).  
+   - Enforce token-count matching across modification types so Δ-performance is not dominated by dimensionality.
+
+2. **Conditional permutation importance (type-level, confound-aware)**  
+   - Permute modification signals **within strata of coverage/ambiguity** to preserve measurement-quality distributions; quantify Δ-performance.
+
+3. **Group attributions (site/bin-level, model-aware)**  
+   - Compute **Integrated Gradients** at token level; aggregate by modification type and subtelomeric bin to yield interpretable regional maps.
+
+**C.3 Visualization deliverables (explicit)**  
+- **Global modification-type contribution**: bar plot of controlled Δ-metric (e.g., ΔAUROC/ΔC-index) for m6A/Ψ/m5C with bootstrap CIs.  
+- **Region-level telomere-proximal “track”**: subtelomeric bins on x-axis; aggregated absolute attribution on y-axis; color by modification type; ambiguity shown by transparency.  
+- **Per-sample explanation card**: predicted risk + calibration-adjusted probability; top bins/peaks per modification type with attribution sign/magnitude and QC confidence; key non-modification drivers (imaging/chromatin/expression) to contextualize multimodal interplay.
+
+**C.4 Mechanistic interpretability linked to biological pathways (qualified, not causal)**  
+- **Concept/pathway layer (more mechanistic than attribution alone)**  
+  - Define pathway activity scores from expression/chromatin features (telomere maintenance, DDR, senescence programs).  
+  - Add a concept-bottleneck-style auxiliary structure where upstream features (including modification blocks) predict pathway activities, and pathway activities predict aging/progression. This yields interpretable mediation-like structure *within the model* (still associative).  
+- **Post-hoc enrichment (hypothesis-generating)**  
+  - Only map high-attribution signals to genes when uniquely anchored; otherwise report bin-level/regional enrichment summaries to avoid false locus specificity.
+
+**C.5 Imaging integration validation (domain-specific)**  
+- Validate segmentation/feature extraction via QC gating and reproducibility checks.  
+- If learned imaging embeddings are used, require in-domain training/fine-tuning; if embeddings do not pass validation, exclude them in favor of engineered telomere/TERRA features only.
+
+**C.6 Evaluation protocol**  
+- Splits: subject-level; time-aware splits for longitudinal prediction (train earlier, test later).  
+- Metrics: AUROC/AUPRC/balanced accuracy; calibration (ECE/reliability curves). Survival: C-index and time-aware calibration where supported [11,14].  
+- Decision utility (optional but recommended): decision-curve analysis for clinical net benefit interpretation [34,37].  
+- Reproducibility minimums: token caps per block, modality dropout rate, optimizer/schedule, early stopping rule, attribution method/baseline, and fixed “top feature” selection policy.
+
+---
+
+### C(2) Alternative design choices and why they were not selected
+
+- **Attention weights as explanations**  
+  Not used as the primary explanation because attention ≠ feature importance; permitted only as supplementary diagnostics.  
+- **LIME/kernel SHAP as sole interpretability**  
+  Not primary due to instability/noise in high-dimensional correlated token spaces; may be used as a sensitivity check on reduced feature sets.  
+- **Gene-centric mapping without ambiguity handling**  
+  Not selected because subtelomeric/telomeric ambiguity can make gene assignment unreliable; the framework prioritizes bin-level summaries unless uniquely anchored.
+
+---
+
+### C(3) How the module’s outputs feed into the next stage
+
+- If a modification type shows high controlled contribution but low confidence (dominated by low-coverage/ambiguous bins), refine Module A filters and tokenization to prioritize high-confidence bins/anchors.  
+- If imaging embeddings fail validation, fall back to engineered telomere/TERRA features only.  
+- If MOFA+/simpler baselines match performance, simplify Modules A/B to improve interpretability and reproducibility.  
+- High-confidence bins/peaks and pathway concepts become a prioritized mechanistic hypothesis list, explicitly labeled as **predictive associations** pending experimental validation.
+
+---
+
+## End-to-end Flow Summary (A → B → C)
+
+1. **Module A** builds **TERRA-appropriate, ambiguity-aware** multi-omics and imaging features, preserves separate **m6A/Ψ/m5C** blocks, and integrates modalities into `z_shared` via a multimodal latent model [2].  
+2. **Module B** predicts aging/progression using a **reliability-aware multimodal Transformer**, optionally with survival/time-to-event modeling [11,14], and calibrated probabilities [32].  
+3. **Module C** quantifies **modification-type contributions** (controlled ablation/permutation + Integrated Gradients), visualizes global/type/region contributions, links signals to pathways via concept layers and qualified enrichment, and evaluates robustness (missing modalities, ambiguity strata) and clinical utility (optional DCA) [34,37].
+
+---
+
+## References (only items explicitly present in the Search Findings)
+
+[2] MultiVI (scvi-tools multimodal integration framework).  
+[7] m6Anet; EpiNano (nanopore-based RNA modification inference tools).  
+[8] MOFA+ (Multi-Omics Factor Analysis Plus).  
+[9] DESeq2 variance-stabilizing transformation (VST) for RNA-seq normalization.  
+[11] DeepSurv (deep learning for survival analysis).  
+[12] scVI (single-cell Variational Inference; scvi-tools).  
+[14] DeepSurv / deep survival modeling (as cited in Search Findings).  
+[17] Cellpose (deep learning cell/nucleus segmentation).  
+[20] Cellpose (additional citation instance in Search Findings).  
+[32] Temperature scaling (probability calibration).  
+[34] Decision curve analysis (DCA).  
+[37] Decision curve analysis (DCA; additional citation instance in Search Findings).
+
+---
+
+## Red Review (Critique + Reliability Score)
+
+## Reliability Score
+- Score: 72
+- Rationale: The framework is comprehensive, technically sophisticated, and explicitly addresses TERRA-specific mapping ambiguity—a critical domain constraint often overlooked. The modular design with clear data flow between stages demonstrates thoughtful architecture. However, the proposal remains entirely theoretical without any empirical validation, pilot data, or concrete feasibility demonstration. Several critical implementation details are underspecified (e.g., exact tokenization procedures, loss function specifications), and the computational/data requirements may be prohibitive for realistic TERRA datasets, which are typically small. The mechanistic interpretability claims, while qualified, still risk overpromising given the associative nature of the methods.
+
+## Critiques / Limitations / Risks (in priority order)
+
+1. **No empirical validation or feasibility demonstration**: The entire framework is a design document with no pilot results, synthetic data tests, or proof-of-concept on any dataset. The "mandatory pilot validation plan" is described but not executed, leaving fundamental questions unanswered: Can the multimodal VAE actually converge with the proposed modality types? Does the reliability-aware tokenization improve performance over simpler approaches? The claim of being "execution-ready" is unsubstantiated.
+
+2. **Sample size and data availability concerns unaddressed**: TERRA-focused multi-omics datasets with all proposed modalities (MeRIP-seq, Ψ-seq, m5C mapping, scRNA-seq, super-resolution imaging, ChIP-seq) on matched samples are exceedingly rare. The framework assumes availability of comprehensive, well-annotated data without discussing minimum sample size requirements, statistical power considerations, or strategies for datasets lacking certain modalities beyond generic "modality masks."
+
+3. **Multimodal VAE training stability is asserted rather than demonstrated**: While the proposal mentions "KL warm-up/annealing schedule, gradient clipping, early stopping," these are standard practices that do not guarantee convergence for heterogeneous biological data with vastly different noise structures (count data, continuous signals, binary peaks). The product-/mixture-of-experts aggregation for shared latent learning is mentioned without specifying which approach or why.
+
+4. **Pseudouridine (Ψ) detection methodological gap**: The proposal acknowledges Ψ-seq "if available" but does not address that robust transcriptome-wide Ψ detection remains technically challenging compared to m6A or m5C. Including Ψ as a co-equal modification type without discussing detection reliability asymmetries may introduce systematic bias in comparative attribution analyses.
+
+5. **Pathway-concept bottleneck approach is underspecified**: The "concept-bottleneck style predictor" is mentioned as providing mechanistic interpretability, but no details are given on how pathway scores are defined, which gene sets are used, how completeness is ensured, or how this architectural choice affects prediction performance. The claim that this is "more mechanistic than post-hoc GSEA" requires justification.
+
+6. **Imaging feature extraction validation is circular**: The proposal states Cellpose will be used "with domain calibration" and embeddings require "in-domain pretraining," but validation criteria are self-referential (checking if embeddings correlate with engineered features). If the engineered features are themselves unvalidated for TERRA/telomere biology, this offers limited assurance.
+
+7. **Reproducibility specifications incomplete**: While token caps and dropout rates are mentioned as "reproducibility minimums," critical hyperparameters (learning rates, batch sizes, number of epochs, specific loss function formulations, handling of class imbalance) are left as "tunable" without defaults. The framework cannot be independently reproduced from this description alone.
+
+8. **Confound-aware attribution method limitations**: The "conditional permutation importance within strata of coverage/ambiguity" is conceptually sound but may fail with sparse data if stratification bins contain too few samples. No minimum stratum size or fallback strategy is specified.
+
+9. **Time-to-event modeling assumptions unstated**: For survival analysis, the discrete-time hazard model is proposed without discussing whether proportional hazards or other assumptions hold for aging/disease progression contexts, or how violations would be detected and handled.
+
+10. **Causality claims remain fundamentally limited**: Despite qualifications that findings are "predictive associations pending experimental validation," the framework's mechanistic interpretability outputs (pathway contributions, modification-type importance) will inevitably be interpreted causally by end users. No explicit guidance on communicating uncertainty or preventing misinterpretation is provided.
+
+## Final Short Summary to Attach
+
+This framework presents an ambitious and technically sophisticated design for predicting cellular aging from TERRA modification patterns, with commendable attention to repetitive-sequence mapping ambiguity and reliability-aware modeling. However, the proposal remains entirely theoretical without empirical validation, and several critical components (sample size requirements, VAE training convergence, Ψ detection reliability, concept-bottleneck implementation) are underspecified. The assumed availability of comprehensive matched multi-omics data is unrealistic for most research settings. Reproducibility is compromised by unspecified hyperparameters and training procedures. Before deployment, pilot studies on realistic or synthetic data are essential to establish whether the proposed complexity provides measurable benefit over simpler baselines.

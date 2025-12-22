@@ -38,9 +38,17 @@ class SummarizerLLM(BaseAnalyst):
         """
         Generate natural language summary of analysis results
         """
-        logger.info("Summarizer LLM: Generating natural language summary...")
+        import time
+        logger.info(f"[SummarizerLLM] Generating natural language summary...")
+        logger.info(f"[SummarizerLLM]   Model: {self.model}")
+        logger.info(f"[SummarizerLLM]   Execution results type: {type(execution_results).__name__}")
+        if isinstance(execution_results, dict):
+            logger.info(f"[SummarizerLLM]   Execution results keys: {list(execution_results.keys())}")
+        logger.info(f"[SummarizerLLM]   Has analysis plan: {analysis_plan is not None}")
 
+        summary_start = time.time()
         prompt = self._build_prompt(execution_results, problem_context, analysis_plan)
+        logger.info(f"[SummarizerLLM]   Prompt length: {len(prompt)} chars")
 
         messages = [
             {"role": "system", "content": self.prompts['system']},
@@ -48,12 +56,25 @@ class SummarizerLLM(BaseAnalyst):
         ]
 
         try:
+            logger.info(f"[SummarizerLLM]   Calling LLM (temperature=0.3)...")
+            llm_start = time.time()
             # Need slightly higher creativity/fluency for summary
             summary = self._call_llm(messages, temperature=0.3)
-            logger.info(f"Summarizer LLM: Summary generated ({len(summary)} chars)")
+            llm_time = time.time() - llm_start
+            summary_time = time.time() - summary_start
+            
+            logger.info(f"[SummarizerLLM]   ✓ LLM responded in {llm_time:.2f}s")
+            logger.info(f"[SummarizerLLM] ✓ Summary generated in {summary_time:.2f}s")
+            logger.info(f"[SummarizerLLM]   Summary length: {len(summary)} chars")
+            logger.info(f"[SummarizerLLM]   Summary preview: {summary[:200]}...")
             return summary
         except Exception as e:
-            logger.warning(f"Summarizer LLM failed: {e}, using fallback summary")
+            summary_time = time.time() - summary_start
+            logger.warning(f"[SummarizerLLM] ✗ FAILED in {summary_time:.2f}s")
+            logger.warning(f"[SummarizerLLM] ✗ Error: {type(e).__name__}: {e}")
+            import traceback
+            logger.warning(f"[SummarizerLLM] ✗ Traceback:\n{traceback.format_exc()}")
+            logger.warning(f"[SummarizerLLM] → Using fallback summary")
             return self._create_fallback_summary(execution_results, problem_context)
 
     def _build_prompt(

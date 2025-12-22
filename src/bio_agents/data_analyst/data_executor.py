@@ -43,17 +43,28 @@ class CodeExecutor(BaseAnalyst):
         """
         Main method to analyze a specific data file/context
         """
+        import time
         file_name = file_info.get('file_name', 'unknown')
-        logger.info(f"Executor: Analyzing {file_name}...")
+        logger.info(f"[CodeExecutor] Starting analysis for: {file_name}")
+        logger.info(f"[CodeExecutor]   DataFrame shape: {df.shape}")
+        logger.info(f"[CodeExecutor]   Columns: {list(df.columns)[:10]}{'...' if len(df.columns) > 10 else ''}")
 
         # Prepare context
+        logger.info(f"[CodeExecutor] Preparing context...")
         column_info = self._format_column_info(file_info.get('columns', []))
         sample_data = str(file_info.get('sample_data', []))
+        logger.info(f"[CodeExecutor]   Column info length: {len(column_info)} chars")
+        logger.info(f"[CodeExecutor]   Sample data length: {len(sample_data)} chars")
+        logger.info(f"[CodeExecutor]   Has analysis plan: {analysis_plan is not None}")
 
         # 1. Generate Analysis Code
+        logger.info(f"[CodeExecutor] Generating analysis code...")
+        logger.info(f"[CodeExecutor]   Model: {self.model}")
+        code_gen_start = time.time()
         prompt = self._create_analysis_prompt(
             file_info, column_info, sample_data, problem_context, analysis_plan
         )
+        logger.info(f"[CodeExecutor]   Prompt length: {len(prompt)} chars")
         
         messages = [
             {"role": "system", "content": self.prompts['system']},
@@ -61,12 +72,24 @@ class CodeExecutor(BaseAnalyst):
         ]
 
         code = self._generate_code(messages)
+        code_gen_time = time.time() - code_gen_start
         
         if not code:
+            logger.error(f"[CodeExecutor] ✗ Code generation FAILED")
             return {"error": "Failed to generate code"}
+        
+        logger.info(f"[CodeExecutor]   ✓ Code generated in {code_gen_time:.2f}s")
+        logger.info(f"[CodeExecutor]   ✓ Generated code length: {len(code)} chars")
+        logger.info(f"[CodeExecutor]   ✓ Code preview: {code[:200]}...")
 
         # 2. Execute Code (with Retry/Fix logic)
+        logger.info(f"[CodeExecutor] Executing code...")
+        exec_start = time.time()
         result = self._execute_and_fix(code, df, file_info, column_info)
+        exec_time = time.time() - exec_start
+        
+        logger.info(f"[CodeExecutor]   ✓ Code executed in {exec_time:.2f}s")
+        logger.info(f"[CodeExecutor]   ✓ Result keys: {list(result.keys()) if isinstance(result, dict) else 'N/A'}")
         
         return result
 
@@ -137,31 +160,55 @@ Analysis Plan (from Planner stage):
         max_retries: int = 3
     ) -> Dict:
         """Execute code and attempt to fix errors using LLM"""
+        import time
+        
+        logger.info(f"[CodeExecutor._execute_and_fix] Starting code execution (max retries: {max_retries})")
         
         for attempt in range(max_retries + 1):
             try:
+                logger.info(f"[CodeExecutor._execute_and_fix]   Attempt {attempt + 1}/{max_retries + 1}")
+                exec_start = time.time()
+                
                 # Execute safely
                 local_scope = self._execute_code_safely(code, df, file_info)
+                exec_time = time.time() - exec_start
+                
+                logger.info(f"[CodeExecutor._execute_and_fix]     ✓ Code executed in {exec_time:.2f}s")
+                logger.info(f"[CodeExecutor._execute_and_fix]     ✓ Local scope keys: {list(local_scope.keys())}")
                 
                 # Check for 'result' variable
                 if 'result' in local_scope:
-                    return local_scope['result']
+                    result = local_scope['result']
+                    logger.info(f"[CodeExecutor._execute_and_fix]     ✓ Result found: type={type(result).__name__}")
+                    if isinstance(result, dict):
+                        logger.info(f"[CodeExecutor._execute_and_fix]     ✓ Result keys: {list(result.keys())}")
+                    return result
                 else:
                     raise ValueError("Variable 'result' not found in executed code.")
 
             except Exception as e:
-                logger.warning(f"Execution failed (Attempt {attempt+1}/{max_retries+1}): {e}")
+                exec_time = time.time() - exec_start if 'exec_start' in locals() else 0
+                logger.warning(f"[CodeExecutor._execute_and_fix]     ✗ Execution FAILED in {exec_time:.2f}s")
+                logger.warning(f"[CodeExecutor._execute_and_fix]     ✗ Error (Attempt {attempt+1}/{max_retries+1}): {type(e).__name__}: {e}")
+                import traceback
+                logger.debug(f"[CodeExecutor._execute_and_fix]     ✗ Traceback:\n{traceback.format_exc()}")
                 
                 if attempt < max_retries:
-                    logger.info("Requesting code fix from LLM...")
+                    logger.info(f"[CodeExecutor._execute_and_fix]     → Requesting code fix from LLM...")
+                    fix_start = time.time()
                     error_msg = f"{type(e).__name__}: {str(e)}"
                     code = self._generate_fix_code(code, error_msg, file_info, column_info)
+                    fix_time = time.time() - fix_start
                     if not code:
+                        logger.error(f"[CodeExecutor._execute_and_fix]     ✗ Fix code generation FAILED in {fix_time:.2f}s")
                         break
+                    logger.info(f"[CodeExecutor._execute_and_fix]     ✓ Fix code generated in {fix_time:.2f}s")
+                    logger.info(f"[CodeExecutor._execute_and_fix]     ✓ Fixed code length: {len(code)} chars")
                 else:
-                    logger.error("Max retries reached. Execution failed.")
+                    logger.error(f"[CodeExecutor._execute_and_fix]     ✗ Max retries reached. Execution failed.")
                     return {"error": str(e), "code": code}
         
+        logger.error(f"[CodeExecutor._execute_and_fix] ✗ Execution failed after all retries")
         return {"error": "Execution failed after retries"}
 
     def _generate_fix_code(

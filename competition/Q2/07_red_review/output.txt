@@ -1,0 +1,29 @@
+## Reliability Score
+- Score: 72
+- Rationale: The framework is comprehensive, technically sophisticated, and explicitly addresses TERRA-specific mapping ambiguity—a critical domain constraint often overlooked. The modular design with clear data flow between stages demonstrates thoughtful architecture. However, the proposal remains entirely theoretical without any empirical validation, pilot data, or concrete feasibility demonstration. Several critical implementation details are underspecified (e.g., exact tokenization procedures, loss function specifications), and the computational/data requirements may be prohibitive for realistic TERRA datasets, which are typically small. The mechanistic interpretability claims, while qualified, still risk overpromising given the associative nature of the methods.
+
+## Critiques / Limitations / Risks (in priority order)
+
+1. **No empirical validation or feasibility demonstration**: The entire framework is a design document with no pilot results, synthetic data tests, or proof-of-concept on any dataset. The "mandatory pilot validation plan" is described but not executed, leaving fundamental questions unanswered: Can the multimodal VAE actually converge with the proposed modality types? Does the reliability-aware tokenization improve performance over simpler approaches? The claim of being "execution-ready" is unsubstantiated.
+
+2. **Sample size and data availability concerns unaddressed**: TERRA-focused multi-omics datasets with all proposed modalities (MeRIP-seq, Ψ-seq, m5C mapping, scRNA-seq, super-resolution imaging, ChIP-seq) on matched samples are exceedingly rare. The framework assumes availability of comprehensive, well-annotated data without discussing minimum sample size requirements, statistical power considerations, or strategies for datasets lacking certain modalities beyond generic "modality masks."
+
+3. **Multimodal VAE training stability is asserted rather than demonstrated**: While the proposal mentions "KL warm-up/annealing schedule, gradient clipping, early stopping," these are standard practices that do not guarantee convergence for heterogeneous biological data with vastly different noise structures (count data, continuous signals, binary peaks). The product-/mixture-of-experts aggregation for shared latent learning is mentioned without specifying which approach or why.
+
+4. **Pseudouridine (Ψ) detection methodological gap**: The proposal acknowledges Ψ-seq "if available" but does not address that robust transcriptome-wide Ψ detection remains technically challenging compared to m6A or m5C. Including Ψ as a co-equal modification type without discussing detection reliability asymmetries may introduce systematic bias in comparative attribution analyses.
+
+5. **Pathway-concept bottleneck approach is underspecified**: The "concept-bottleneck style predictor" is mentioned as providing mechanistic interpretability, but no details are given on how pathway scores are defined, which gene sets are used, how completeness is ensured, or how this architectural choice affects prediction performance. The claim that this is "more mechanistic than post-hoc GSEA" requires justification.
+
+6. **Imaging feature extraction validation is circular**: The proposal states Cellpose will be used "with domain calibration" and embeddings require "in-domain pretraining," but validation criteria are self-referential (checking if embeddings correlate with engineered features). If the engineered features are themselves unvalidated for TERRA/telomere biology, this offers limited assurance.
+
+7. **Reproducibility specifications incomplete**: While token caps and dropout rates are mentioned as "reproducibility minimums," critical hyperparameters (learning rates, batch sizes, number of epochs, specific loss function formulations, handling of class imbalance) are left as "tunable" without defaults. The framework cannot be independently reproduced from this description alone.
+
+8. **Confound-aware attribution method limitations**: The "conditional permutation importance within strata of coverage/ambiguity" is conceptually sound but may fail with sparse data if stratification bins contain too few samples. No minimum stratum size or fallback strategy is specified.
+
+9. **Time-to-event modeling assumptions unstated**: For survival analysis, the discrete-time hazard model is proposed without discussing whether proportional hazards or other assumptions hold for aging/disease progression contexts, or how violations would be detected and handled.
+
+10. **Causality claims remain fundamentally limited**: Despite qualifications that findings are "predictive associations pending experimental validation," the framework's mechanistic interpretability outputs (pathway contributions, modification-type importance) will inevitably be interpreted causally by end users. No explicit guidance on communicating uncertainty or preventing misinterpretation is provided.
+
+## Final Short Summary to Attach
+
+This framework presents an ambitious and technically sophisticated design for predicting cellular aging from TERRA modification patterns, with commendable attention to repetitive-sequence mapping ambiguity and reliability-aware modeling. However, the proposal remains entirely theoretical without empirical validation, and several critical components (sample size requirements, VAE training convergence, Ψ detection reliability, concept-bottleneck implementation) are underspecified. The assumed availability of comprehensive matched multi-omics data is unrealistic for most research settings. Reproducibility is compromised by unspecified hyperparameters and training procedures. Before deployment, pilot studies on realistic or synthetic data are essential to establish whether the proposed complexity provides measurable benefit over simpler baselines.

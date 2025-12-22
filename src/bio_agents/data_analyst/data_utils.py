@@ -71,8 +71,13 @@ class FileResolver:
         }
 
         if not self.data_dir.exists():
+            logger.warning(f"[FileResolver._build_file_index] Data directory does not exist: {self.data_dir}")
             return index
 
+        logger.info(f"[FileResolver._build_file_index] Building file index from: {self.data_dir}")
+        indexed_count = 0
+        skipped_count = 0
+        
         for root, dirs, files in os.walk(self.data_dir):
             root_path = Path(root)
             folder_name = root_path.name
@@ -95,8 +100,13 @@ class FileResolver:
 
                     # Add to pattern list
                     index['by_pattern'].append(file_path)
+                    indexed_count += 1
+                else:
+                    skipped_count += 1
 
-        logger.info(f"Built file index: {len(index['by_pattern'])} files indexed")
+        logger.info(f"[FileResolver._build_file_index] ✓ Index built: {indexed_count} files indexed, {skipped_count} skipped")
+        logger.info(f"[FileResolver._build_file_index]   Unique filenames: {len(index['by_name'])}")
+        logger.info(f"[FileResolver._build_file_index]   Folders: {len(index['by_folder'])}")
         return index
 
     def resolve(self, db_list: str) -> List[Dict[str, str]]:
@@ -111,21 +121,31 @@ class FileResolver:
             List of dicts with file information:
             [{"path": "/full/path", "name": "filename", "match_type": "exact|folder|pattern"}]
         """
+        logger.info(f"[FileResolver] Resolving DB_list: '{db_list}'")
+        logger.info(f"[FileResolver]   Data directory: {self.data_dir}")
+        logger.info(f"[FileResolver]   Indexed files: {len(self._file_index['by_pattern'])}")
+        
         if not db_list or not db_list.strip():
+            logger.warning(f"[FileResolver]   ⚠ Empty DB_list provided")
             return []
 
         results = []
 
         # Split by comma for multiple references
         references = [ref.strip() for ref in db_list.split(',')]
+        logger.info(f"[FileResolver]   Parsed {len(references)} references: {references}")
 
-        for ref in references:
+        for ref_idx, ref in enumerate(references, 1):
             ref = ref.strip()
             if not ref:
                 continue
 
+            logger.info(f"[FileResolver]   [{ref_idx}/{len(references)}] Resolving: '{ref}'")
             # Try different resolution strategies
             resolved = self._resolve_single(ref)
+            logger.info(f"[FileResolver]     → Found {len(resolved)} matches")
+            for match_idx, match in enumerate(resolved, 1):
+                logger.info(f"[FileResolver]       [{match_idx}] {match['name']} ({match.get('match_type', 'unknown')})")
             results.extend(resolved)
 
         # Remove duplicates while preserving order
@@ -135,33 +155,48 @@ class FileResolver:
             if r['path'] not in seen:
                 seen.add(r['path'])
                 unique_results.append(r)
+        
+        duplicates = len(results) - len(unique_results)
+        if duplicates > 0:
+            logger.info(f"[FileResolver]   Removed {duplicates} duplicate(s)")
 
-        logger.info(f"Resolved '{db_list}' to {len(unique_results)} files")
+        logger.info(f"[FileResolver] ✓ Resolved '{db_list}' to {len(unique_results)} unique files")
         return unique_results
 
     def _resolve_single(self, ref: str) -> List[Dict[str, str]]:
         """Resolve a single reference string"""
+        logger.debug(f"[FileResolver._resolve_single] Attempting to resolve: '{ref}'")
         results = []
 
         # Strategy 1: Exact filename match
+        logger.debug(f"[FileResolver._resolve_single]   Strategy 1: Exact filename match")
         exact_matches = self._match_exact(ref)
         if exact_matches:
+            logger.debug(f"[FileResolver._resolve_single]     ✓ Found {len(exact_matches)} exact match(es)")
             results.extend(exact_matches)
             return results
+        logger.debug(f"[FileResolver._resolve_single]     ⊘ No exact match")
 
         # Strategy 2: Folder/pattern match (e.g., "Q1 features" -> Q1.features folder)
+        logger.debug(f"[FileResolver._resolve_single]   Strategy 2: Folder/pattern match")
         folder_matches = self._match_folder(ref)
         if folder_matches:
+            logger.debug(f"[FileResolver._resolve_single]     ✓ Found {len(folder_matches)} folder match(es)")
             results.extend(folder_matches)
             return results
+        logger.debug(f"[FileResolver._resolve_single]     ⊘ No folder match")
 
         # Strategy 3: Fuzzy pattern match
+        logger.debug(f"[FileResolver._resolve_single]   Strategy 3: Fuzzy pattern match")
         pattern_matches = self._match_pattern(ref)
         if pattern_matches:
+            logger.debug(f"[FileResolver._resolve_single]     ✓ Found {len(pattern_matches)} pattern match(es)")
             results.extend(pattern_matches)
             return results
+        logger.debug(f"[FileResolver._resolve_single]     ⊘ No pattern match")
 
-        logger.warning(f"Could not resolve reference: {ref}")
+        logger.warning(f"[FileResolver._resolve_single]   ✗ Could not resolve reference: '{ref}'")
+        logger.warning(f"[FileResolver._resolve_single]     Available files in index: {len(self._file_index['by_pattern'])}")
         return results
 
     def _match_exact(self, ref: str) -> List[Dict[str, str]]:

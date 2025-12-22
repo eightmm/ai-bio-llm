@@ -8,7 +8,7 @@ Data Analyst Agent
 
 import json
 import logging
-import re
+import time
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Any
 import pandas as pd
@@ -18,7 +18,6 @@ from .data_utils import DataLoader, FileResolver
 from .data_executor import CodeExecutor
 from .data_planner import PlannerLLM, AnalysisPlan
 from .data_summarizer import SummarizerLLM
-from .db_list_extractor import DBListExtractor
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +52,6 @@ class DataAnalystAgent:
         self.file_resolver = FileResolver(Config.DATA_DIR)
         self.data_loader = DataLoader()
         self.code_executor = CodeExecutor()  # No longer takes config arg
-        self.db_list_extractor = DBListExtractor()  # LLM-based extraction
 
         # 3-Stage Pipeline configuration
         self.use_planner = use_planner
@@ -87,24 +85,42 @@ class DataAnalystAgent:
         Returns:
             Dict containing the analysis results.
         """
+        start_time = time.time()
         problem_path = Path(problem_path)
-        logger.info(f"Running DataAnalystAgent for problem: {problem_path}")
+        logger.info("=" * 80)
+        logger.info(f"[DataAnalystAgent] Starting analysis for problem: {problem_path}")
+        logger.info(f"[DataAnalystAgent] Problem directory: {problem_dir}")
+        logger.info("=" * 80)
         
         # Load problem JSON (Brain output)
+        logger.info(f"[Step 0] Loading Brain output JSON from: {problem_path}")
+        load_start = time.time()
         with open(problem_path, 'r', encoding='utf-8') as f:
             brain_output = json.load(f)
+        load_time = time.time() - load_start
+        logger.info(f"[Step 0] ✓ Loaded Brain output in {load_time:.2f}s")
+        logger.info(f"[Step 0]   - Problem ID: {brain_output.get('problem_id', 'unknown')}")
+        logger.info(f"[Step 0]   - Sub-problems: {len(brain_output.get('sub_problems', []))}")
 
         # Update FileResolver to look in the problem directory first.
         # problem_path is the Brain output JSON. In the current pipeline it may live under
         # .../problem_X/01_brain/brain_decomposition.json, while data files live in .../problem_X/.
+        logger.info(f"[Step 0.5] Determining problem data directory...")
+        resolver_start = time.time()
         candidate_dirs = []
         if problem_path.parent.exists():
             candidate_dirs.append(problem_path.parent)
+            logger.info(f"[Step 0.5]   Candidate 1: {problem_path.parent}")
         if problem_path.parent.parent.exists() and problem_path.parent.parent != problem_path.parent:
             candidate_dirs.append(problem_path.parent.parent)
+            logger.info(f"[Step 0.5]   Candidate 2: {problem_path.parent.parent}")
+        if problem_dir:
+            candidate_dirs.insert(0, Path(problem_dir))
+            logger.info(f"[Step 0.5]   Explicit directory (priority): {problem_dir}")
 
         def has_supported_data_files(d: Path) -> bool:
             try:
+                file_count = 0
                 for p in d.iterdir():
                     if p.is_file() and p.suffix.lower() in {
                         ".csv", ".tsv", ".txt", ".tab", ".xlsx", ".xls", ".json", ".parquet",
@@ -115,32 +131,67 @@ class DataAnalystAgent:
                     }:
                         # Treat pure agent artifacts folder as "no data" if it contains only JSON
                         if p.suffix.lower() != ".json":
-                            return True
-                return False
-            except Exception:
+                            file_count += 1
+                logger.info(f"[Step 0.5]   Directory {d}: {file_count} supported data files")
+                return file_count > 0
+            except Exception as e:
+                logger.warning(f"[Step 0.5]   Error checking {d}: {e}")
                 return False
 
         chosen_dir = None
         for d in candidate_dirs:
             if has_supported_data_files(d):
                 chosen_dir = d
+                logger.info(f"[Step 0.5]   ✓ Selected directory: {chosen_dir}")
                 break
 
         if chosen_dir is None and candidate_dirs:
             chosen_dir = candidate_dirs[0]
+            logger.info(f"[Step 0.5]   Using first candidate (no data files found): {chosen_dir}")
 
         if chosen_dir and chosen_dir.exists():
-            logger.info(f"Updating FileResolver to use problem directory: {chosen_dir}")
+            logger.info(f"[Step 0.5] Initializing FileResolver with directory: {chosen_dir}")
             self.file_resolver = FileResolver(chosen_dir)
+            resolver_time = time.time() - resolver_start
+            logger.info(f"[Step 0.5] ✓ FileResolver initialized in {resolver_time:.2f}s")
+        else:
+            logger.warning(f"[Step 0.5] ⚠ No valid directory found, using default FileResolver")
             
         # Run analysis
+        logger.info(f"[Step 1] Starting main analysis pipeline...")
+        analysis_start = time.time()
         output = self.analyze(brain_output)
+        analysis_time = time.time() - analysis_start
+        logger.info(f"[Step 1] ✓ Analysis completed in {analysis_time:.2f}s")
         
-        # Construct output path (replace .json with _analysis.json/md)
+        # Construct output path: save to 03_data_analysis/ directory instead of 01_brain/
+        logger.info(f"[Step 2] Preparing output file...")
+        save_start = time.time()
         output_ext = '.md' if self.output_format == 'natural_language' and isinstance(output, str) else '.json'
-        output_path = problem_path.parent / (problem_path.stem + f"_analysis{output_ext}")
+        
+        # Determine the 03_data_analysis directory path
+        # problem_path is like .../01_brain/brain_decomposition.json
+        # We want to save to .../03_data_analysis/brain_decomposition_analysis.{ext}
+        problem_root = problem_path.parent.parent  # Go up from 01_brain/ to problem_X/
+        data_analysis_dir = problem_root / "03_data_analysis"
+        data_analysis_dir.mkdir(parents=True, exist_ok=True)
+        output_path = data_analysis_dir / (problem_path.stem + f"_analysis{output_ext}")
+        
+        logger.info(f"[Step 2]   Output path: {output_path}")
+        logger.info(f"[Step 2]   Output format: {self.output_format} ({output_ext})")
+        logger.info(f"[Step 2]   Output size: {len(str(output))} chars")
         
         self.save_output(output, output_path)
+        save_time = time.time() - save_start
+        
+        total_time = time.time() - start_time
+        logger.info(f"[Step 2] ✓ Output saved in {save_time:.2f}s")
+        logger.info("=" * 80)
+        logger.info(f"[DataAnalystAgent] ✓ COMPLETED in {total_time:.2f}s")
+        logger.info(f"[DataAnalystAgent]   - Analysis: {analysis_time:.2f}s")
+        logger.info(f"[DataAnalystAgent]   - Output: {save_time:.2f}s")
+        logger.info(f"[DataAnalystAgent]   - Output file: {output_path}")
+        logger.info("=" * 80)
         
         return {
             "output": output,
@@ -170,59 +221,29 @@ class DataAnalystAgent:
                 sub_problems = [single_sub]
 
         # Collect DB_list from all sub_problems with DB_flag=1
+        # Only use DB_list explicitly provided by BrainAgent, no LLM or regex extraction
+        logger.info(f"[DB Collection] Collecting DB_list from sub_problems...")
+        logger.info(f"[DB Collection]   Total sub_problems: {len(sub_problems)}")
         all_db_refs = set()
         active_sub_problems = []
-        for sp in sub_problems:
-            if sp.get('DB_flag') == 1:
+        for idx, sp in enumerate(sub_problems, 1):
+            db_flag = sp.get('DB_flag', 0)
+            sp_id = sp.get('id', f'sub_{idx}')
+            logger.info(f"[DB Collection]   Sub-problem {idx}: ID={sp_id}, DB_flag={db_flag}")
+            if db_flag == 1:
                 active_sub_problems.append(sp)
                 db_list_str = sp.get('DB_list', '')
                 refs = [r.strip() for r in db_list_str.split(',') if r.strip()]
                 all_db_refs.update(refs)
-
-        # ========== 2-Stage Extraction Strategy ==========
-
-        # Stage 1: LLM-based extraction (primary method)
-        logger.info("=== Stage 1: LLM-based DB_list extraction ===")
-        llm_extracted_refs = self.db_list_extractor.extract_db_list(brain_output)
-
-        if llm_extracted_refs:
-            all_db_refs.update(llm_extracted_refs)
-            logger.info(f"LLM extracted {len(llm_extracted_refs)} references: {llm_extracted_refs}")
-        else:
-            logger.warning("LLM extraction returned no results")
-
-        # Stage 2: Regex-based extraction (fallback method)
-        # Extract additional data references from original_problem_text using regex
-        text = brain_output.get('original_problem_text', '')
-
-        # 1. Extract Q patterns (Q1, Q2, ..., Q9)
-        q_patterns = set(re.findall(r'Q\d+', text, re.IGNORECASE))
-        regex_refs = set(q_patterns)
-
-        # 2. Extract file names with extensions
-        file_patterns = re.findall(
-            r'([A-Za-z0-9_\-\.]+\.(?:pod5|bam|sam|csv|tsv|fastq|fasta|vcf|bed|bigWig))',
-            text,
-            re.IGNORECASE
-        )
-        regex_refs.update(file_patterns)
-
-        # 3. Extract keywords from bullet points
-        bullet_keywords = re.findall(r'\*\s+([A-Za-z0-9_\-]+)', text)
-        regex_refs.update(bullet_keywords)
-
-        # 4. Create Q-prefixed combinations
-        expanded_refs = set()
-        for ref in regex_refs.copy():
-            expanded_refs.add(ref)
-            # Add Q-prefixed variants (Q5.exhaustion_signature, Q1.features, etc.)
-            for q_num in q_patterns:
-                if not ref.upper().startswith('Q'):  # Don't double-prefix
-                    expanded_refs.add(f"{q_num}.{ref}")
-
-        # Combine LLM and regex results
-        all_db_refs.update(expanded_refs)
-        logger.info(f"Total data references (LLM + Regex): {len(all_db_refs)} candidates")
+                logger.info(f"[DB Collection]     ✓ Active (DB_flag=1)")
+                logger.info(f"[DB Collection]     ✓ DB_list: {db_list_str}")
+                logger.info(f"[DB Collection]     ✓ Extracted {len(refs)} references: {refs}")
+            else:
+                logger.info(f"[DB Collection]     ⊘ Skipped (DB_flag={db_flag})")
+        
+        logger.info(f"[DB Collection] ✓ Total active sub_problems: {len(active_sub_problems)}")
+        logger.info(f"[DB Collection] ✓ Total unique DB references: {len(all_db_refs)}")
+        logger.info(f"[DB Collection] ✓ References: {sorted(all_db_refs)}")
 
         # Check if any active sub_problems exist
         if not active_sub_problems:
@@ -243,69 +264,133 @@ class DataAnalystAgent:
             }
 
         # Resolve file paths from combined DB_list
-        combined_db_list = ', '.join(all_db_refs)
-        logger.info(f"Resolving combined DB_list: {combined_db_list}")
-        logger.info(f"Active sub_problems: {len(active_sub_problems)} of {len(sub_problems)}")
+        logger.info(f"[File Resolution] Resolving file paths from DB_list...")
+        resolve_start = time.time()
+        combined_db_list = ', '.join(sorted(all_db_refs))
+        logger.info(f"[File Resolution]   Combined DB_list: {combined_db_list}")
+        logger.info(f"[File Resolution]   Active sub_problems: {len(active_sub_problems)} of {len(sub_problems)}")
+        logger.info(f"[File Resolution]   FileResolver data_dir: {self.file_resolver.data_dir}")
         resolved_files = self.file_resolver.resolve(combined_db_list)
+        resolve_time = time.time() - resolve_start
 
         if not resolved_files:
-            logger.error(f"Could not resolve any files from DB_list: {combined_db_list}")
+            logger.error(f"[File Resolution] ✗ FAILED: Could not resolve any files")
+            logger.error(f"[File Resolution]   DB_list: {combined_db_list}")
+            logger.error(f"[File Resolution]   Data directory: {self.file_resolver.data_dir}")
             return {
                 'status': 'error',
                 'reason': f'Could not resolve files from DB_list: {combined_db_list}',
                 'problem_id': brain_output.get('problem_id', 'unknown')
             }
+        
+        logger.info(f"[File Resolution] ✓ Resolved {len(resolved_files)} files in {resolve_time:.2f}s")
+        for idx, file_info in enumerate(resolved_files, 1):
+            logger.info(f"[File Resolution]   [{idx}] {file_info['name']}")
+            logger.info(f"[File Resolution]       Path: {file_info['path']}")
+            logger.info(f"[File Resolution]       Match type: {file_info.get('match_type', 'unknown')}")
 
         # ========== Stage 1: Planner LLM ==========
         analysis_plan = None
         if self.use_planner:
-            logger.info("=== Stage 1: Planner LLM ===")
+            logger.info("=" * 80)
+            logger.info("[Stage 1: Planner LLM] Starting...")
+            logger.info("=" * 80)
+            planner_start = time.time()
             try:
+                logger.info(f"[Stage 1]   Model: {Config.MODEL_DATA_PLANNER}")
+                logger.info(f"[Stage 1]   Input files: {len(resolved_files)}")
+                logger.info(f"[Stage 1]   Sub-problems: {len(active_sub_problems)}")
                 analysis_plan = self.planner.create_plan(brain_output, resolved_files)
-                logger.info(f"Analysis plan created: type={analysis_plan.problem_type}, "
-                           f"strategy={analysis_plan.processing_strategy}")
+                planner_time = time.time() - planner_start
+                logger.info(f"[Stage 1] ✓ Plan created in {planner_time:.2f}s")
+                logger.info(f"[Stage 1]   Problem type: {analysis_plan.problem_type}")
+                logger.info(f"[Stage 1]   Processing strategy: {analysis_plan.processing_strategy}")
+                logger.info(f"[Stage 1]   File priority: {analysis_plan.file_priority}")
+                logger.info(f"[Stage 1]   Focus areas: {analysis_plan.focus_areas}")
+                logger.info(f"[Stage 1]   Code flow steps: {len(analysis_plan.code_flow)}")
             except Exception as e:
-                logger.warning(f"Stage 1 (Planner) failed: {e}, continuing without plan")
+                planner_time = time.time() - planner_start
+                logger.warning(f"[Stage 1] ✗ FAILED in {planner_time:.2f}s: {type(e).__name__}: {e}")
+                logger.warning(f"[Stage 1]   Continuing without plan...")
                 analysis_plan = None
+        else:
+            logger.info("[Stage 1: Planner LLM] ⊘ Disabled (use_planner=False)")
 
         # ========== Stage 2: Executor ==========
-        logger.info("=== Stage 2: Executor ===")
+        logger.info("=" * 80)
+        logger.info("[Stage 2: Executor] Starting file analysis...")
+        logger.info("=" * 80)
+        executor_start = time.time()
         file_analyses = []
 
         # Determine file processing order from plan or use default
         if analysis_plan and analysis_plan.file_priority:
-            # Reorder resolved_files based on plan priority
+            logger.info(f"[Stage 2] Using file priority from plan: {analysis_plan.file_priority}")
             file_order = {name: idx for idx, name in enumerate(analysis_plan.file_priority)}
             resolved_files_ordered = sorted(
                 resolved_files,
                 key=lambda f: file_order.get(f['name'], len(file_order))
             )
         else:
+            logger.info(f"[Stage 2] Using default file order (no plan priority)")
             resolved_files_ordered = resolved_files
 
-        for file_info in resolved_files_ordered:
-            logger.info(f"[File {len(file_analyses) + 1}/{len(resolved_files_ordered)}] Starting analysis: {file_info['name']}")
+        logger.info(f"[Stage 2] Processing {len(resolved_files_ordered)} files...")
+        for file_idx, file_info in enumerate(resolved_files_ordered, 1):
+            file_start = time.time()
+            logger.info(f"[Stage 2] [{file_idx}/{len(resolved_files_ordered)}] Processing: {file_info['name']}")
+            logger.info(f"[Stage 2]   File path: {file_info['path']}")
 
             try:
                 analysis = self._analyze_single_file(file_info, brain_output, analysis_plan)
                 file_analyses.append(analysis)
-                logger.info(f"✓ Completed analysis for {file_info['name']}")
+                file_time = time.time() - file_start
+                logger.info(f"[Stage 2]   ✓ Completed in {file_time:.2f}s")
+                logger.info(f"[Stage 2]   ✓ Analysis result: type={analysis.get('type', 'unknown')}, "
+                           f"rows={analysis.get('rows', 'unknown')}, columns={len(analysis.get('columns', []))}")
             except Exception as e:
-                logger.error(f"✗ Error analyzing {file_info['name']}: {type(e).__name__}: {str(e)}")
+                file_time = time.time() - file_start
+                logger.error(f"[Stage 2]   ✗ FAILED in {file_time:.2f}s")
+                logger.error(f"[Stage 2]   ✗ Error: {type(e).__name__}: {str(e)}")
+                import traceback
+                logger.error(f"[Stage 2]   ✗ Traceback:\n{traceback.format_exc()}")
                 file_analyses.append({
                     'file_path': file_info['path'],
                     'file_name': file_info['name'],
                     'status': 'error',
                     'error': str(e)
                 })
+        
+        executor_time = time.time() - executor_start
+        successful = len([a for a in file_analyses if 'error' not in a])
+        failed = len([a for a in file_analyses if 'error' in a])
+        logger.info(f"[Stage 2] ✓ Executor completed in {executor_time:.2f}s")
+        logger.info(f"[Stage 2]   Successful: {successful}/{len(file_analyses)}")
+        logger.info(f"[Stage 2]   Failed: {failed}/{len(file_analyses)}")
 
         # Build execution results
+        logger.info(f"[Output Building] Building final output...")
+        build_start = time.time()
         execution_results = self._build_output(brain_output, file_analyses)
+        build_time = time.time() - build_start
+        logger.info(f"[Output Building] ✓ Output built in {build_time:.2f}s")
+        if isinstance(execution_results, dict):
+            if 'files' in execution_results:
+                logger.info(f"[Output Building]   Output type: multi-file ({len(execution_results['files'])} files)")
+            else:
+                logger.info(f"[Output Building]   Output type: single-file")
+            if 'integration' in execution_results:
+                logger.info(f"[Output Building]   Integration strategy: present")
 
         # ========== Stage 3: Summarizer LLM ==========
         if self.use_summarizer and self.output_format == 'natural_language':
-            logger.info("=== Stage 3: Summarizer LLM ===")
+            logger.info("=" * 80)
+            logger.info("[Stage 3: Summarizer LLM] Starting...")
+            logger.info("=" * 80)
+            summarizer_start = time.time()
             try:
+                logger.info(f"[Stage 3]   Model: {Config.MODEL_DATA_SUMMARIZER}")
+                logger.info(f"[Stage 3]   Input: {len(str(execution_results))} chars")
                 # Enhanced context with sub_problems array for integrated analysis
                 enhanced_context = {
                     **brain_output,
@@ -317,11 +402,22 @@ class DataAnalystAgent:
                     problem_context=enhanced_context,
                     analysis_plan=analysis_plan
                 )
-                logger.info(f"Natural language summary generated ({len(summary)} chars)")
+                summarizer_time = time.time() - summarizer_start
+                logger.info(f"[Stage 3] ✓ Summary generated in {summarizer_time:.2f}s")
+                logger.info(f"[Stage 3]   Summary length: {len(summary)} chars")
                 return summary
             except Exception as e:
-                logger.warning(f"Stage 3 (Summarizer) failed: {e}, returning JSON instead")
+                summarizer_time = time.time() - summarizer_start
+                logger.warning(f"[Stage 3] ✗ FAILED in {summarizer_time:.2f}s: {type(e).__name__}: {e}")
+                logger.warning(f"[Stage 3]   Returning JSON output instead")
+                import traceback
+                logger.warning(f"[Stage 3]   Traceback:\n{traceback.format_exc()}")
                 return execution_results
+        else:
+            if not self.use_summarizer:
+                logger.info("[Stage 3: Summarizer LLM] ⊘ Disabled (use_summarizer=False)")
+            elif self.output_format != 'natural_language':
+                logger.info(f"[Stage 3: Summarizer LLM] ⊘ Skipped (output_format={self.output_format}, not 'natural_language')")
 
         return execution_results
 
@@ -343,28 +439,53 @@ class DataAnalystAgent:
             Compact analysis result for this file (no sample data)
         """
         file_path = file_info['path']
+        file_name = file_info['name']
 
         # Load data
-        logger.info(f"Loading data file: {file_info['name']} from {file_path}")
+        logger.info(f"[File Analysis] Loading data file: {file_name}")
+        logger.info(f"[File Analysis]   Path: {file_path}")
+        load_start = time.time()
         try:
             df, metadata = self.data_loader.load_file(file_path, sample=True)
-            logger.info(f"Successfully loaded {file_info['name']}: {metadata['loaded_rows']} rows, {len(metadata['columns'])} columns (format: {metadata['format']})")
+            load_time = time.time() - load_start
+            logger.info(f"[File Analysis]   ✓ Loaded in {load_time:.2f}s")
+            logger.info(f"[File Analysis]   ✓ Rows: {metadata['loaded_rows']} (total: {metadata.get('total_rows', 'unknown')})")
+            logger.info(f"[File Analysis]   ✓ Columns: {len(metadata['columns'])}")
+            logger.info(f"[File Analysis]   ✓ Format: {metadata['format']}")
+            logger.info(f"[File Analysis]   ✓ Size: {metadata.get('file_size_mb', 0):.2f} MB")
+            logger.info(f"[File Analysis]   ✓ Encoding: {metadata.get('encoding', 'unknown')}")
         except Exception as e:
-            logger.error(f"Failed to load {file_info['name']}: {type(e).__name__}: {e}")
+            load_time = time.time() - load_start
+            logger.error(f"[File Analysis]   ✗ Load FAILED in {load_time:.2f}s")
+            logger.error(f"[File Analysis]   ✗ Error: {type(e).__name__}: {e}")
+            import traceback
+            logger.error(f"[File Analysis]   ✗ Traceback:\n{traceback.format_exc()}")
             raise
 
         # Run LLM analysis with optional plan context
+        logger.info(f"[File Analysis] Running LLM analysis...")
+        logger.info(f"[File Analysis]   Model: {Config.MODEL_DATA_EXECUTOR}")
+        logger.info(f"[File Analysis]   DataFrame shape: {df.shape}")
+        logger.info(f"[File Analysis]   Has analysis plan: {analysis_plan is not None}")
+        analysis_start = time.time()
         llm_analysis = self.code_executor.analyze_data(
             df=df,
             file_info=metadata,
             problem_context=brain_output,
             analysis_plan=analysis_plan
         )
+        analysis_time = time.time() - analysis_start
+        logger.info(f"[File Analysis]   ✓ LLM analysis completed in {analysis_time:.2f}s")
         
         # Safety check: ensure llm_analysis is a dictionary
         if not isinstance(llm_analysis, dict):
-            logger.error(f"Executor returned non-dict result for {file_info['name']}: {llm_analysis}")
+            logger.error(f"[File Analysis]   ✗ Executor returned non-dict result")
+            logger.error(f"[File Analysis]   ✗ Type: {type(llm_analysis)}, Value: {llm_analysis}")
             llm_analysis = {"error": str(llm_analysis)}
+        else:
+            logger.info(f"[File Analysis]   ✓ Analysis keys: {list(llm_analysis.keys())}")
+            logger.info(f"[File Analysis]   ✓ Data type: {llm_analysis.get('data_type', 'unknown')}")
+            logger.info(f"[File Analysis]   ✓ Key columns: {llm_analysis.get('key_columns', [])}")
 
         # Build enriched column info with biological context
         enriched_columns = self._build_enriched_columns(df, llm_analysis.get('columns', []))

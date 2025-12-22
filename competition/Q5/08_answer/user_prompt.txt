@@ -1,0 +1,702 @@
+# Problem
+Problem 5. [Rejuvenation Target Discovery Along the T Cell Exhaustion–Aging–Death Axis]
+
+
+Background
+In the tumor microenvironment, T cells are subjected to chronic and repeated antigen stimulation over time, leading to the acquisition of a T cell exhaustion program characterized by reduced effector function and altered transcriptional states. As this process progresses, a subset of exhausted T cells is observed to exhibit stress-induced, aging-like transcriptional programs, which may ultimately culminate in cellular senescence and cell death.
+In this problem, T cell exhaustion is assumed to represent a progressive trajectory toward aging-like dysfunction and terminal loss of cellular viability. Reversing this trajectory—particularly at critical transition points—can be conceptualized as a form of immune rejuvenation.
+You are provided with time-course bulk RNA-seq data of T cells following tumor challenge. Using this dataset, your task is to define and analyze the exhaustion–aging–death axis and propose gene-level intervention targets capable of reversing this progression.
+The following publicly available aging-related resources may be used, among others:
+•	GenAge (Human Aging Genomic Resources, HAGR)
+https://genomics.senescence.info/genes/
+•	MSigDB Aging / Senescence Gene Sets
+https://www.gsea-msigdb.org
+
+Task Overview
+Using the provided time-course T cell bulk RNA-seq data, identify candidate rejuvenation targets that could reverse T cell exhaustion and aging-like programs before terminal cell death.
+Your analysis should be explicitly grounded in RNA-seq–based evidence and focused on the intersection between exhaustion and aging-like transcriptional states.
+(A) Quantification of Exhaustion and Aging-Like Programs
+•	Define a T cell exhaustion score and an aging-like score using transcriptional signatures derived from the time-course data.
+•	Visualize and describe how these scores change over time following tumor challenge.
+(B) Identification of the Critical Transition Window
+•	Identify and define a key transition window along the
+“Exhaustion → Aging-Like → Death” axis.
+•	Justify why this time interval represents a biologically meaningful state transition, rather than a gradual continuum.
+(C) Proposal of Rejuvenation Target Genes
+•	Propose candidate target genes capable of reversing or disrupting the exhaustion–aging trajectory during the identified transition window.
+•	For each proposed target:
+o	Specify the direction of intervention: inhibition or activation
+o	Provide RNA-seq–based evidence, including:
+	Direction of expression change over time
+	Network or pathway-level context
+	Opposing regulation relative to exhaustion or aging-like signatures
+Your reasoning should explicitly connect gene modulation to the expected rejuvenation-like transcriptional shift.
+(D) Optional (Bonus): Therapeutic Mapping
+•	Using the provided drug–target dataset, identify:
+o	Existing drugs or compounds that could modulate the proposed targets
+•	Briefly discuss feasibility, specificity, or limitations of these interventions
+
+
+
+
+
+---
+
+# Search Findings / References (from SearchAgent)
+# Rejuvenation Target Discovery Along the T Cell Exhaustion–Aging–Death Axis: A Systems Transcriptomics Approach to Identify Gene-Level Interventions in Tumor-Challenged T Cells
+
+## Summary of Findings
+
+This report synthesizes a comprehensive analysis framework for identifying rejuvenation targets in T cells exhibiting progressive exhaustion and aging-like transcriptional dysfunction within the tumor microenvironment. Using time-course bulk RNA-seq data combined with established transcriptional signatures from aging and exhaustion biology, we define a quantitative exhaustion–aging axis and identify a critical transition window—approximately 48–96 hours post tumor challenge in preclinical models—where exhausted T cells begin acquiring senescence-like transcriptional programs and stress responses characteristic of cellular aging. Within this window, we nominate five high-priority intervention targets: **TOX inhibition** (to disrupt exhaustion-specific epigenetic programming), **NR4A family inhibition** (to block persistent TCR signaling-driven exhaustion), **CDKN1A/p21 inhibition** (to reverse senescence-associated growth arrest while maintaining tumor control), **mitophagy pathway activation** via PINK1–Parkin modulation (to restore mitochondrial homeostasis), and **SIRT1 activation** (to restore metabolic flexibility and suppress senescence-associated secretory phenotype). These targets are supported by differential expression patterns, co-expression network analysis, pathway activity inference, and mechanistic literature grounding the exhaustion–aging intersection. Therapeutic mapping identifies selective kinase inhibitors, epigenetic modulators, and metabolic activators as near-term modulators of these pathways, with explicit discussion of feasibility and limitations.
+
+---
+
+## Part A: Quantification of Exhaustion and Aging-Like Programs Over Time
+
+### A.1 Transcriptional Signature Development and Score Construction
+
+#### A.1.1 Exhaustion Signature Definition
+
+T cell exhaustion represents a distinct transcriptional state characterized by sustained expression of inhibitory receptors, reduced effector cytokine production, and metabolic reprogramming in response to chronic antigen exposure.[1][4] The canonical exhaustion signature integrates multiple marker classes: inhibitory receptors (PDCD1/PD-1, LAG3, HAVCR2/TIM-3, TIGIT, CTLA4), exhaustion-associated transcription factors (TOX, TOX2, NR4A family members, NFATC1), and reduced expression of effector-related genes (GZMB, PRF1, IFNG, TNF).[1][13][16] Single-cell RNA-seq studies and bulk transcriptomics of tumor-infiltrating T cells have revealed that TOX serves as a master regulator initiating and maintaining T cell exhaustion through epigenetic programming, with continuous TOX expression reinforcing a durable epigenetic barrier that locks cells into the exhausted state.[13]
+
+To quantify exhaustion from bulk time-course RNA-seq data, we construct a multi-component score integrating these signature classes using single-sample Gene Set Variation Analysis (GSVA), which is superior to simple z-score averaging for bulk data as it accounts for monotonic changes in expression rank rather than absolute expression levels.[15][18] The exhaustion score is computed as:
+
+\[
+\text{Exhaustion Score}(s,t) = w_1 \cdot \text{GSVA}(\text{Inhibitory Receptors}) + w_2 \cdot \text{GSVA}(\text{Exhaustion TFs}) - w_3 \cdot \text{GSVA}(\text{Effector Genes})
+\]
+
+where weights \(w_1, w_2, w_3\) are optimized based on temporal consistency and correlation with known exhaustion phenotypes. Gene sets are derived from: (i) published single-cell atlases identifying conserved exhaustion markers across chronic viral infection and cancer models[10][31], (ii) differential expression within the provided time-course data (time-course-specific DE genes with monotonic increase or decrease), and (iii) literature-curated exhaustion gene sets from MSigDB including immune-checkpoint signatures.[6][10]
+
+The exhaustion signature specifically captures the progressive loss of TCR-dependent effector differentiation and the acquisition of inhibitory receptor co-expression characteristic of the TOX-dependent exhaustion program.[13][16][20] Prior studies demonstrate that exhaustion initiates within 24–48 hours of chronic stimulation and progresses through progenitor exhausted (Tpex) states marked by TOX expression and maintained stemness, toward terminal exhaustion (Tex-term) marked by irreversible chromatin remodeling, maximal inhibitory receptor expression, and profound effector dysfunction.[31][48] The score thus captures both the initiation phase (TCF-1 decline, initial PD-1 upregulation, NR4A induction) and the terminal phase (sustained inhibitory receptor co-expression, loss of proliferation capacity, epigenetic silencing of effector loci).
+
+#### A.1.2 Aging-Like and Senescence Signature Development
+
+Complementary to exhaustion, an aging-like score quantifies transcriptional features characteristic of cellular senescence and aging-associated transcriptional remodeling. The aging-like score integrates established senescence markers and aging-related genes identified from meta-analyses of microarray studies across multiple organisms and tissues.[3][6] The score combines: (i) canonical senescence markers (CDKN1A/p21, CDKN2A/p16, LMNB1 down-regulation indicating nuclear lamina disruption), (ii) senescence-associated secretory phenotype (SASP) components (IL6, IL8, TNF, CXCL10, IL1B), (iii) stress-response genes (GADD45, ATM, p53 targets), (iv) genes associated with mitochondrial dysfunction and ROS production (NDUFS genes, oxidative stress-related genes), and (v) genes involved in chromatin remodeling and epigenetic aging signatures identified from GenAge and MSigDB aging collections.[2][3][5][6]
+
+\[
+\text{Aging-Like Score}(s,t) = w_4 \cdot \text{GSVA}(\text{Senescence Markers}) + w_5 \cdot \text{GSVA}(\text{SASP Cytokines}) + w_6 \cdot \text{GSVA}(\text{DNA Damage/Stress}) - w_7 \cdot \text{GSVA}(\text{Metabolic Fitness Genes})
+\]
+
+This formulation reflects the observation that aging and senescence involve simultaneous upregulation of stress-response and inflammatory programs coupled with downregulation of mitochondrial function and biosynthetic capacity.[3][35] Critically, the aging-like signature is distinct from simple exhaustion: while exhaustion emphasizes immune dysfunction and checkpoint receptor expression, the aging-like component captures metabolic exhaustion, DNA damage signaling, and organismal-aging hallmarks including loss of proteostasis and mitochondrial quality control.[32][35]
+
+Senescence-associated secretory phenotype (SASP) genes warrant particular emphasis, as senescent cells remain metabolically active despite growth arrest and actively secrete inflammatory mediators (IL-6, IL-8, TNF) and matrix-degrading enzymes that alter the tumor microenvironment.[14][17] Meta-analyses of aging transcriptomes identify 56 genes consistently overexpressed with age, with the most significant being APOD (apolipoprotein D), alongside robust upregulation of inflammation/immune response genes and lysosomal genes, coupled with consistent underexpression of collagen genes and energy metabolism genes, particularly mitochondrial genes.[3][6] T cells undergoing replicative or stress-induced senescence recapitulate these patterns: upregulation of p16/p21 checkpoint inhibitors, loss of effector molecules, accumulation of autophagic vesicles, and increased ROS production.[11][35]
+
+#### A.1.3 Temporal Trajectory Visualization and Quantification
+
+Time-course bulk RNA-seq preprocessing follows standard protocols: quality control via FastQC, adapter trimming, alignment to reference genome, and quantification using Salmon or RSEM to generate transcript-level abundance estimates, which are aggregated to gene level.[9][12] Normalization employs size-factor methods (DESeq2 median-of-ratios or edgeR trimmed mean of M-values) to account for sequencing depth and RNA composition bias, followed by variance-stabilizing transformation (VST) for visualization and log2-fold-change (log2FC) calculations for linear models.[9]
+
+The time-course is modeled using continuous regression approaches that capture non-linear temporal dynamics. Specifically, differential expression over time is quantified via: (1) **maSigPro** (microarray Significant Profiles), which uses polynomial regression with dummy variables for experimental group and time interactions, allowing detection of genes with time-dependent expression patterns specific to the tumor-challenged condition versus controls;[38] (2) **ImpulseDE2**, which fits impulse functions (scaled sigmoid products) to gene expression trajectories, enabling distinction of transiently versus permanently activated genes and precise identification of transition points;[39] and (3) **DESeq2 or limma-voom with natural cubic splines**, providing flexible modeling of non-monotonic and complex temporal patterns while controlling multiple testing via Benjamini-Hochberg FDR.[9]
+
+For each gene, these methods yield temporal expression trajectories with quantified slope changes and statistical significance at each timepoint. This granular temporal profiling is essential for detecting the exhaustion–aging transition: a gene may show steady upregulation early (consistent with exhaustion) but accelerate sharply during a defined window (indicating transition to aging-like stress). Aggregating genes into the exhaustion and aging-like signature scores via GSVA produces smooth trajectory curves with confidence intervals derived from resampling or bootstrap approaches across sample replicates.
+
+The temporal visualization integrates four key representations: (1) **Time-series line plots** of exhaustion and aging-like scores with 95% confidence bands reflecting replicate variability, revealing the inflection point where aging-like scores accelerate; (2) **Heatmaps** of Z-scored expression for top differentially expressed genes in each signature, ordered by temporal pattern (early, middle, late activation) to visualize coordinated transcriptional reprogramming; (3) **PCA/UMAP plots** on variance-stabilized expression with sample points colored by timepoint and score values, revealing clustering of early exhaustion samples versus late aging-like samples; and (4) **Correlation matrices** showing how individual signature genes correlate with the composite scores and with each other, identifying potential hubs or driver genes.
+
+#### A.1.4 Biological Validation via Pathway Activity Inference
+
+To validate that the constructed scores capture biologically meaningful processes, we infer activity of known pathways and transcription factors using two complementary tools: **PROGENy** (Pathway RespOnsive GENes for activity inference)[25] and **DoRothEA** (Collection Of Human And Mouse TF Regulons).[26][29]
+
+**PROGENy** leverages a compendium of signaling perturbation experiments to derive pathway-responsive gene signatures for pathways relevant to T cell biology and aging: JAK-STAT (immunity and cell division), MAPK (external signal integration and proliferation), NFκB (immune response and cytokine production), p53 (cell cycle, apoptosis, DNA repair), PI3K (growth and proliferation), TGFβ (development and tissue repair), TNFα (haematopoiesis and immune surveillance), VEGF (angiogenesis), and Wnt (tissue repair).[25][28] For each sample and timepoint, PROGENy scores are computed via multivariate linear model (MLM) inference: a linear model is fit predicting gene expression from pathway weights, and the resulting t-values serve as activity scores. We expect that early timepoints exhibit high PI3K and MAPK activity (supporting effector differentiation), while late timepoints show elevated p53 activity and reduced mTOR activity (reflecting stress and metabolic slowdown associated with aging-like states).
+
+**DoRothEA** provides transcription factor–target interactions curated from diverse evidence sources and ranked by confidence.[26][29] We focus on TF regulons associated with exhaustion (TOX, NR4A1/3, NFAT family members, BATF, IRF4) and aging/senescence (p53, FOXO family, GATA4).[31][48] For each TF, DoRothEA+VIPER (or alternative inference method decoupleR) estimates TF activity as the normalized enrichment score of its targets in the expression data. We predict that exhaustion-associated TFs (TOX, NR4A) show progressive activation from early to late timepoints within the transition window, while effector-associated TFs (T-BET early, transient) show loss of activity. Conversely, aging-associated TFs (p53, FOXO) should show accelerated activation specifically in the aging-like window.
+
+Strong correlations between PROGENy/DoRothEA-inferred activities and our constructed exhaustion/aging-like scores confirm that the signatures are not artifactual but reflect coherent underlying biology. Specifically, correlation of exhaustion score with TOX+NR4A activity (expected: positive, \(r > 0.7\)), p53 activity (expected: low early, increasing late), and MAPK activity (expected: decreasing) provides cross-validation that the score captures known molecular processes.
+
+#### A.1.5 Integration with Viability and Death-Related Signatures
+
+Where available, the time-course data may include measurements of cell viability (e.g., live/dead staining, apoptosis markers via flow cytometry, or inferred from culture kinetics). We integrate these by computing an apoptosis-related transcriptional signature using the Hallmark APOPTOSIS gene set from MSigDB.[49] This death/apoptosis score is modeled similarly to exhaustion and aging-like scores:
+
+\[
+\text{Death Score}(s,t) = \text{GSVA}(\text{Hallmark Apoptosis Genes})
+\]
+
+The death score is expected to remain low during early exhaustion (when apoptosis is suppressed by exhaustion-associated survival signals), then rise sharply during or after the aging-like transition window (reflecting accumulation of irreversibly damaged cells and terminal differentiation toward apoptosis). Correlation of the aging-like score with the death score during the proposed transition window (expected: significant positive correlation, \(r > 0.6\)) provides additional evidence that aging-like signature genes are mechanistically linked to cell death pathways rather than merely being correlated by chance.
+
+---
+
+## Part B: Identification and Justification of the Critical Transition Window
+
+### B.1 Operational Definition of the Exhaustion–Aging–Death Axis
+
+The exhaustion–aging–death axis is operationally defined as a one-dimensional progression along which T cells transition from a functional effector state → early exhausted (progenitor-like, TOX+, partially reversible) → late exhausted/aging-like (terminal, senescent, largely irreversible) → apoptotic death. This is not a smooth continuum but comprises discrete transcriptional states demarcated by abrupt rewiring of gene regulatory networks. The transition window is the minimal contiguous set of timepoints exhibiting: (1) **acceleration of the aging-like score** beyond its early-phase slope; (2) **plateau or inversion of the exhaustion score** (loss of further exhaustion-marker upregulation or initial loss of stemness markers); (3) **emergence of senescence-associated inflammatory programs** and DNA damage responses; and (4) **initialization of cell death/apoptosis signatures**.
+
+### B.2 Change-Point Detection on Exhaustion and Aging-Like Scores
+
+To formally identify transition windows, we apply **segmented regression** to the exhaustion and aging-like scores, treating time as the independent variable and the score as the dependent variable. Segmented regression decomposes the temporal trajectory into linear segments with breakpoints representing abrupt slope changes. For a piecewise linear model with one breakpoint at time \(t_b\):
+
+\[
+\text{Score}(t) = \beta_0 + \beta_1 \cdot t + \beta_2 \cdot (t - t_b)^+ + \epsilon
+\]
+
+where \((t - t_b)^+ = \max(0, t - t_b)\) is the threshold function activating the second segment only for \(t \geq t_b\). The breakpoint \(t_b\) is estimated via grid search, minimizing residual sum of squares, with statistical significance assessed via F-tests for the improvement in fit. Confidence intervals for \(t_b\) are computed via bootstrap resampling of the time-course data.
+
+For the aging-like score, we expect a single strong breakpoint separating a shallow initial slope (slow accumulation of aging-like features during early exhaustion) from a steeper post-breakpoint slope (rapid acquisition of senescence and stress programs). For the exhaustion score, we may observe a more complex pattern: initial upslope (exhaustion acquisition), plateau (stabilization of exhaustion state), and slight downslope in very late timepoints (reflecting cell death/dropout of viable exhausted cells), with the key breakpoint marking the exhaustion plateau.
+
+Complementary to segmented regression, **Bayesian change-point detection** (e.g., Bayesian Blocks or PELT algorithm) provides robust detection of change-points even in noisy data, with posterior distributions quantifying uncertainty in the breakpoint location.[22] Applying both methods and requiring agreement strengthens confidence in the identified transition window.
+
+### B.3 Gene-Module Switching and Co-Expression Network Reorganization
+
+Beyond score-level change-point detection, we examine reorganization of gene co-expression networks using **Weighted Gene Co-Expression Network Analysis (WGCNA)**, which groups genes into modules of coordinated expression.[9][12] WGCNA constructs a soft-thresholded adjacency matrix preserving the continuous nature of gene correlations, performs hierarchical clustering to identify modules, and computes module eigengenes (first principal component of module expression) summarizing each module's activity across samples.
+
+We expect WGCNA to recover multiple distinct modules including: (1) an **exhaustion module** comprising TOX, NR4A, inhibitory receptors, NFAT targets, and TCR signaling genes—this module should show high eigengene at all post-challenge timepoints but plateau in slope during the aging-like window; (2) an **aging/senescence module** containing CDKN1A, CDKN2A, p53 targets, DNA damage response genes, SASP cytokines—this module's eigengene should remain low early but accelerate sharply during the transition window; (3) an **effector/metabolic module** with GZMB, PRF1, IFNG, metabolic genes (mitochondrial biogenesis, glycolytic enzymes)—expected to decline monotonically, accelerating during the aging-like transition; and (4) an **apoptosis/death module** with caspase genes, pro-apoptotic BCL2 family members—expected to remain suppressed early (due to exhaustion-associated survival signals) then rise sharply during or after the transition.
+
+Module eigengene trajectories are visualized as time-series plots with fitted spline smooths, and slopes are compared between pre-window, window, and post-window intervals using piecewise linear mixed-effects models, with FDR adjustment for multiple comparisons. The transition window is operationally defined as the timepoint interval maximizing a composite criterion:
+
+\[
+\text{CriterionScore} = |\Delta \text{slope}_{\text{aging}}| + |\Delta \text{slope}_{\text{exhaustion}}| + |\Delta \text{slope}_{\text{apoptosis}}| - |\Delta \text{slope}_{\text{metabolic}}|
+\]
+
+where \(\Delta \text{slope}\) represents the absolute change in module eigengene slope between intervals, penalizing modules (like metabolic) that should decline steadily regardless of window boundary.
+
+### B.4 Differential Expression Windows and Pathway Enrichment
+
+To further justify the identified transition window, we partition the time-course into three epochs: **Pre-transition** (early exhaustion, timepoints 0–T1), **Transition window** (T1–T2), and **Post-transition** (late aging-like, T2 onward). Differential expression is computed between each pair of epochs using limma-voom with design matrices incorporating epoch as a factor, generating contrasts: Pre vs Window, Window vs Post, and Pre vs Post.
+
+Genes with **interaction** effects (differential expression magnitude between epochs) are identified; we expect strong three-way interactions for aging/senescence genes (upregulated Pre→Window but at accelerated rate) and death genes (minimal Pre→Window but sharp Window→Post upregulation). Gene set enrichment analysis (GSEA) is performed on each contrast using MSigDB collections:
+
+- **Pre vs Window contrast**: expect modest enrichment for apoptosis-related terms and DNA damage response, consistent with initiation of senescence
+- **Window vs Post contrast**: expect strong enrichment for senescence, cell cycle arrest (p16/p21 targets), SASP, and inflammation, consistent with progression toward terminal senescence
+- **Pre vs Post contrast**: expect very strong enrichment for apoptosis and cell death terms overall, consistent with the ultimate outcome
+
+FDR-adjusted p-values and normalized enrichment scores (NES) quantify the strength and directionality of enrichment. Windows exhibiting the strongest coordinated enrichment for senescence (Window epoch) and apoptosis (Post epoch) while showing relative suppression in early exhaustion epoch (Pre) provide the strongest evidence for a discrete transition.
+
+### B.5 Formal Operational Definition and Biological Justification
+
+**Operational Definition of Transition Window**: The transition window is defined as the minimal contiguous set of timepoints \([T_1, T_2]\) such that:
+
+1. The aging-like score exhibits a significant positive slope change at \(T_1\) (segmented regression p-value < 0.05), with post-change slope significantly exceeding pre-change slope
+2. The exhaustion score exhibits plateau (no significant slope change at \(T_1\)) or slight negative slope change, indicating saturation of exhaustion acquisition
+3. The death/apoptosis score exhibits significant positive slope change at \(T_1\) or onset within the window (p-value < 0.05)
+4. WGCNA aging/senescence module eigengene accelerates in slope at \(T_1\) (interaction p-value < 0.05) and peaks or plateaus by \(T_2\)
+5. GSEA enrichment for senescence and apoptosis terms reaches maximum significance in the Window epoch (FDR < 0.01)
+
+**Biological Justification**: This transition reflects a fundamental shift in T cell fate regulation. During early exhaustion (Pre), T cells progressively acquire exhaustion-associated genes (TOX, NR4A, inhibitory receptors) under sustained TCR stimulation in the tumor microenvironment, but remain viable due to activation of survival pathways (BCL2, SKP2-mediated suppression of p21) and sufficient metabolic capacity. During the transition window (Window), exhaustion becomes irreversible due to epigenetic locking (TOX-mediated chromatin remodeling), and simultaneously metabolic dysfunction deepens: mitochondria accumulate damage (reduced mitophagy, increased ROS), NAD+ levels decline, and senescence pathways (p53-CDKN1A-p21) activate, imposing a non-cell-autonomous growth arrest and inflammatory secretion. Post-transition (Post), exhausted cells either undergo apoptosis (if survival signals fail) or persist as senescent cells secreting SASP factors, which themselves drive immunosuppression and tissue damage.
+
+This window corresponds biologically to the transition from **progenitor exhausted (Tpex)** to **terminally exhausted (Tex-term)** states observed in single-cell studies,[31][48] a transition mediated by sustained TOX expression, epigenetic silencing of effector loci (via HDAC6 and other epigenetic writers), and accumulation of metabolic dysfunction. The discreteness (rather than continuum nature) reflects bistability: once epigenetic locking occurs, reversal requires active histone remodeling or chromatin-modifying drugs; the system lacks a smooth return path, explaining why late exhausted T cells show minimal response to checkpoint blockade.[13]
+
+---
+
+## Part C: Proposal of Rejuvenation Target Genes with Directionality and Evidence
+
+### C.1 Target Discovery Framework: Opposing Regulation and Mechanistic Prioritization
+
+Rejuvenation targets are identified through the following logic: genes whose modulation during the transition window can shift the transcriptional state backward along the exhaustion-aging axis (toward a less exhausted, less senescent, more metabolically competent state). We prioritize genes exhibiting:
+
+1. **Opposing correlation with exhaustion/aging-like signatures**: negative correlation with aging-like score (inhibition candidates) or negative correlation with exhaustion score (activation candidates, to restore effector function)
+2. **Peak differential expression specifically during the transition window** (strong interaction effect pre- vs window vs post), indicating centrality to the state transition
+3. **Regulatory/network role**: identification as transcription factors, kinases, or metabolic hub genes based on co-expression network analysis and pathway inference
+4. **Tractability**: feasible targeting via approved/clinical-stage modulators, and cell-intrinsic mechanism (not dependent on extrinsic niche signals)
+5. **Consistency with known exhaustion/aging biology**: mechanism aligned with established master regulators (TOX, p53, SIRT1, etc.) and aging pathways (mitochondrial dynamics, NAD+ metabolism, senescence)
+
+### C.2 Target 1: TOX Inhibition—Breaking Exhaustion Epigenetic Lock
+
+#### Expression Trajectory and Mechanistic Basis
+
+**TOX** (Thymocyte selection-associated high mobility group box) is a master regulator of CD8+ T cell exhaustion, acting as a transcriptional and epigenetic driver that is largely dispensable for formation of effector or memory T cells but **absolutely critical for exhaustion**.[16][13] In the absence of TOX, exhausted T cells do not form. TOX is induced by sustained calcineurin and NFAT signaling downstream of chronic TCR stimulation, and once induced, operates in a feedforward loop becoming calcineurin-independent and sustained in exhausted T cells.[16]
+
+In time-course data, TOX expression is expected to: (1) remain low or absent at baseline, (2) induce sharply at early timepoints (6–12 hours post tumor challenge) coinciding with exhaustion module activation, (3) **plateau during the early-to-mid exhaustion phase** (6–48 hours), and (4) **maintain high steady-state expression through the transition window and beyond**. Critically, TOX expression does NOT accelerate during the aging-like transition window; rather, it serves as a permissive factor enabling the aging-like transition by epigenetically locking cells into the exhaustion trajectory.
+
+The mechanistic link between TOX and aging-like dysfunction involves **epigenetic scarring**: TOX directly recruits histone acetyltransferases (HATs) and indirectly interfaces with DNA methyltransferases (DNMTs), particularly DNMT3A, to open chromatin at exhaustion-promoting loci (PDCD1, HAVCR2, LAG3) while simultaneously closing chromatin at effector and metabolic loci.[13][31][48] This epigenetic remodeling becomes irreversible over time, and once established, even removal of the initial stimulus (TCR signal reduction) does not restore chromatin accessibility or effector function—hence the "epigenetic scarring" metaphor.[13]
+
+#### Evidence for Inhibition as a Rejuvenation Strategy
+
+**Continuous TOX expression maintains T cell exhaustion through epigenetic barriers**: Recent studies reveal that **inducible ablation of TOX from already-committed exhausted CD8+ T cells** results in reduced apoptosis, loss of inhibitory receptor expression, decreased terminal differentiation, and enhanced epigenetic plasticity toward more effector-like states.[13] This is remarkable because it demonstrates that removing TOX even post-establishment can alter the exhausted trajectory, implying that the epigenetic lock is not permanently frozen but rather actively maintained by ongoing TOX transcriptional activity.
+
+Mechanistically, continuous TOX expression: (1) maintains accessibility at exhaustion enhancers via HAT recruitment, (2) recruits repressive chromatin marks at effector loci, preventing re-activation of GZMB, IFNG and related genes, (3) sustains NFAT:AP-1 imbalance (BATF suppression), perpetuating exhaustion-favoring transcription factor ratios, and (4) promotes expression of additional exhaustion-locked TFs (EOMES, NR4A) in a feedforward loop.[31][48]
+
+In time-series RNA-seq, TOX inhibition would be expected to trigger:
+- **Reduced expression of downstream exhaustion markers** (PDCD1, HAVCR2, LAG3, TIGIT) via loss of NFAT-driven transcription
+- **Restored effector gene expression** (GZMB, PRF1, IFNG) via reopening of silenced effector loci
+- **Reduced p53 pathway activation** (CDKN1A downregulation) by breaking the link between exhaustion-driven stress and senescence commitment
+- **Restored metabolic gene expression** (MITOCHONDRIAL genes, glycolytic enzymes) via loss of epigenetic silencing
+
+**Correlation evidence**: TOX expression is expected to correlate strongly with the exhaustion score (\(r > 0.8\)) across early timepoints, but notably, during the aging-like window, TOX expression remains high while the aging-like score accelerates, indicating that TOX alone does not drive aging but rather enables it by locking cells into the exhaustion trajectory where aging pathways can operate unopposed.
+
+#### Proposed Mechanistic Outcome of TOX Inhibition
+
+Inhibiting TOX during the transition window would: (1) interrupt ongoing epigenetic remodeling before terminal silencing of effector loci becomes irreversible, (2) reduce NFAT-driven expression of senescence-upstream signals, (3) allow re-expression of metabolic and survival-supporting genes suppressed by TOX-mediated epigenetic silencing, and (4) impede the feedforward loop linking exhaustion to aging-like senescence.
+
+**Direction of intervention**: **Inhibition** via small-molecule TOX antagonists, dominant-negative approaches, or indirect inhibition via disruption of calcineurin–NFAT signaling (the upstream inducer of TOX).
+
+### C.3 Target 2: NR4A Family (NR4A1, NR4A2, NR4A3) Inhibition—Suppressing Persistent TCR Signaling
+
+#### Expression Trajectory and Mechanistic Basis
+
+The NR4A family of orphan nuclear receptors (NR4A1/Nur77, NR4A2/Nurr1, NR4A3/NOR1) are induced downstream of NFAT in response to sustained TCR engagement and are critical for establishing T cell exhaustion.[20][23][31] NR4A members are directly induced by NFAT and form positive feedback loops with TOX: TOX promotes NR4A expression, and NR4A members reciprocally enhance TOX expression, creating a bistable transcriptional circuit that locks exhausted T cell fate.[20]
+
+In time-course data, NR4A family genes (particularly NR4A2 and NR4A3) are expected to: (1) remain low at baseline, (2) induce robustly at early exhaustion timepoints (concurrent with or immediately following TOX induction), (3) plateau at high levels through exhaustion acquisition, and (4) **remain sustained through the transition window**. Notably, NR4A induction is particularly associated with sustained persistent TCR signaling—even in the chronic infection and cancer contexts where TCR signal is lower than acute infection, NR4A genes are strongly upregulated, indicating that they serve as sensors/integrators of even low-level chronic TCR input.
+
+NR4A family members drive exhaustion through multiple mechanisms: (1) **direct transcriptional activation of exhaustion programs** (upregulating PDCD1, TIGIT, and other inhibitory receptors), (2) **direct transcriptional activation of senescence/growth arrest programs** (upregulating CDKN2A/p16, contributing to p53-independent cell cycle arrest), and (3) **metabolic rewiring** toward oxidative phosphorylation and reduced glycolysis, limiting the metabolic flexibility needed for effector responses.[23][31]
+
+#### Evidence for NR4A Inhibition
+
+Studies in T cell development and exhaustion context reveal that **NR4A deficiency impairs T cell exhaustion**: in chronic lymphocytic choriomeningitis virus (LCMV) infection models, mice with inducible deletion of NR4A family members show reduced exhaustion markers and improved viral control compared to wild-type counterparts, suggesting that NR4A activity is selectively pro-exhaustion rather than generally promoting T cell responses.[23][31]
+
+Furthermore, NR4A-mediated exhaustion is partially independent of PD-1 signaling: even in the context of PD-1 blockade, high NR4A expression associates with persistent exhaustion, indicating that NR4A-driven programs (p16 upregulation, metabolic constraints) can maintain exhaustion independent of the canonical PD-1 inhibitory pathway.[20][23][31]
+
+**Time-course correlation evidence**: NR4A expression (composite of NR4A1/2/3) is expected to show strong positive correlation with both the exhaustion score (\(r > 0.7\)) and the aging-like score (\(r > 0.6\)) during the transition window, indicating that NR4A is associated with both exhaustion maintenance and senescence acquisition. This correlation strengthens mechanistically because NR4A directly targets both exhaustion-enhancer elements (via NFAT interaction) and senescence-promoting elements (CDKN2A, p16 loci), making it a convergence point between the two transcriptional programs.
+
+#### Proposed Rejuvenation Outcome
+
+Inhibiting NR4A family during the transition window would: (1) interrupt persistent TCR signaling integration, (2) reduce expression of both exhaustion markers (PDCD1, TIGIT) and senescence markers (CDKN2A/p16), (3) relieve metabolic constraints, allowing restoration of glycolytic capacity for effector function, and (4) interrupt the positive feedback loop between NR4A and TOX, potentially synergizing with TOX inhibition.
+
+**Direction of intervention**: **Inhibition** via inverse agonists (compounds that bind the nuclear receptor and promote its export from the nucleus or antagonize transcription factor binding) or indirect inhibition via suppression of upstream NFAT/calcineurin signaling.
+
+### C.4 Target 3: CDKN1A/p21 Inhibition—Selective Relief of Senescence-Induced Growth Arrest
+
+#### Expression Trajectory and Mechanistic Basis
+
+CDKN1A (cyclin-dependent kinase inhibitor 1A, also known as p21 or CIP1/WAF1) is a canonical senescence marker and cell cycle checkpoint inhibitor that is upregulated downstream of p53 and NR4A-mediated signaling, promoting G1/S cell cycle arrest characteristic of senescent cells.[8][11][24] Critically, CDKN1A is expressed as two transcript variants (variant 1 and variant 2) with distinct regulation: variant 1 responds rapidly to acute DNA damage and genotoxic stress, while variant 2 is preferentially expressed during **natural aging** and **chronic stress-induced senescence**, and importantly, is **p53-dependent** for induction.[8][11]
+
+In time-course RNA-seq data, CDKN1A is expected to: (1) remain low or undetectable at baseline and early exhaustion (0–12 hours), (2) remain suppressed through early-to-mid exhaustion (12–48 hours) due to activation of survival pathways (Bcl2, SKP2) that prevent p21 accumulation, (3) **induce sharply during the transition window (48–96 hours)**, particularly the p21 variant 2 isoform, coinciding with aging-like module activation, and (4) remain elevated in post-transition late timepoints.
+
+The mechanistic link between CDKN1A induction and the aging-like transition is dual: (1) **p53-mediated induction** following accumulation of DNA damage (due to ROS from dysfunctional mitochondria, telomere shortening, or environmental genotoxins), and (2) **NR4A-mediated induction** independent of DNA damage, as part of the NR4A-driven program promoting senescence-like growth arrest.
+
+#### Evidence for p21 Inhibition as a Rejuvenation Strategy
+
+Paradoxically, **selective p21 inhibition during exhaustion does not simply promote cancer**: p21 serves complex dual roles in tumor suppression and immune dysfunction. However, in the specific context of anti-tumor T cell responses, p21-mediated growth arrest impairs the proliferation needed for T cell clonal expansion and anti-tumor cytotoxicity.[24] Recent studies demonstrate that **selective inhibition of p21 in exhausted T cells improves their proliferative capacity and cytotoxic function** without compromising their specificity or promoting autoreactivity.[24]
+
+Mechanistically, p21 inhibition permits: (1) progression through G1/S checkpoint despite moderate DNA damage, (2) restoration of proliferation capacity despite senescence signals, (3) maintenance of metabolic plasticity and glycolytic capacity (rather than the forced oxidative phosphorylation typical of senescent cells), and (4) reduced secretion of SASP factors that would otherwise suppress neighboring T cells and recruit immunosuppressive myeloid cells.
+
+Critically, the timing of p21 inhibition is crucial: **inhibition during the transition window**—when p21 is first accumulating and senescence is being established—is more effective than inhibition in late timepoints when senescence is irreversible and cells are committed to apoptotic death. This aligns with the proposed mechanism: p21 acts as a reversible checkpoint early, but once epigenetic senescence programs activate (DNA methylation of metabolic genes, chromatin closing at proliferation loci), p21 inhibition alone is insufficient.
+
+**Time-course evidence**: CDKN1A expression is expected to correlate strongly with the aging-like score (\(r > 0.8\)) but show little correlation with the exhaustion score in early timepoints (distinguishing senescence from exhaustion); correlation with the exhaustion score increases sharply during the transition window, reflecting the downstream link from exhaustion to aging-like senescence.
+
+#### Proposed Rejuvenation Outcome
+
+Inhibiting p21 during the transition window would: (1) relieve G1/S checkpoint arrest, restoring proliferation capacity, (2) prevent establishment of senescence-associated epigenetic programs (if inhibition occurs before epigenetic locking is complete), (3) reduce SASP factor secretion, and (4) maintain T cell viability and metabolic competence while exhaustion machinery is being addressed (via TOX/NR4A inhibition).
+
+**Direction of intervention**: **Inhibition** via direct p21 antagonists (currently limited), indirect inhibition via disruption of p53-mediated transcription (p53 inhibitors, though requiring selectivity to avoid tumor-promoting effects), or cell-cycle checkpoint bypass via CDK inhibitor antagonists (CDK4/6 inhibitor resistance conferring agents) that relieve the CDK-p21 interaction.
+
+**Important caveat**: p53 is a master tumor suppressor, and global p53 inhibition carries significant oncogenic risk. Proposed approaches instead focus on **selective inhibition of p21 without globally suppressing p53**, via: (1) indirect modulation of p21 upstream regulators (NR4A inhibition reduces NR4A-mediated p16/p21 induction), (2) SIRT1 activation (deacetylates p53, reducing its activity on p21 without fully abolishing p53), or (3) selective degradation of p21 protein via molecular glue degraders or proteolysis-targeting chimeras (PROTACs) targeting CDKN1A.
+
+### C.5 Target 4: PINK1/Parkin Axis Activation—Restoring Mitochondrial Quality Control
+
+#### Expression Trajectory and Mechanistic Basis
+
+Mitochondrial dysfunction is a hallmark of both T cell exhaustion and aging.[32][35] The PINK1–Parkin pathway is the canonical machinery for selective autophagy of damaged mitochondria (mitophagy), essential for maintaining mitochondrial quality control, ATP production capacity, and ROS homeostasis.[56][59] PINK1 (PTEN-induced putative kinase 1) is a serine/threonine kinase localized to the outer mitochondrial membrane (in basal conditions) and on damaged mitochondria, where it undergoes trans-autophosphorylation, recruits and phosphorylates Parkin (an E3 ubiquitin ligase), leading to polyubiquitination of damaged mitochondrial proteins and their selective autophagy.
+
+In time-course RNA-seq, PINK1 and PARKIN expression are expected to: (1) remain low or moderate at baseline and early exhaustion (reflecting basal mitochondrial dynamics), (2) show gradual decline through mid exhaustion (12–48 hours), potentially due to exhaustion-associated downregulation of mitochondrial biogenesis programs, and (3) **show further decline or maintained suppression through the transition window and post-transition**, indicating failure of mitophagy machinery despite accumulating mitochondrial damage.
+
+Mechanistically, impaired mitophagy in exhausted T cells arises from: (1) **transcriptional downregulation** of PINK1 and PARKIN genes (due to suppression of PGC-1α and NRF1, master regulators of mitochondrial biogenesis), (2) **post-translational inhibition** of PINK1-Parkin activity (via SIRT3 deficiency reducing PINK1 deacetylation, impairing its activity), and (3) **metabolic reprogramming** favoring OXPHOS over glycolysis, creating a state where mitochondria are forced to operate at high oxidative load but lack adequate quality control, leading to ROS accumulation and further mitochondrial damage.[32][35][59]
+
+This mitochondrial dysfunction couples to aging-like senescence: ROS accumulates from dysfunctional mitochondria, triggering DNA damage responses (ATM/ATR→p53 signaling), which activate senescence checkpoints (p21, p16) and SASP programs (IL-6, IL-8, TNF). Additionally, loss of mitochondrial ATP production constrains biosynthetic capacity, forcing cells into a quiescent state characteristic of senescence.[35][59]
+
+#### Evidence for PINK1/Parkin Activation
+
+Studies in aging tissues demonstrate that **mitophagy impairment accumulates with age** and is causal in aging-associated diseases: activation of the PINK1–Parkin pathway or upstream regulators (AMPK, PGC-1α) extends lifespan and prevents age-associated pathology in preclinical models.[56][59] In the T cell context, **restoring mitophagy capacity (via PINK1 overexpression, Parkin activation, or PINK1–Parkin-independent mitophagy pathway activation via BNIP3L or FUNDC1)** improves T cell metabolic function and anti-tumor activity.
+
+Mechanistically, restoring mitophagy would: (1) remove damaged mitochondria accumulating during chronic TCR stimulation, (2) restore NAD+ pools (via restored OXPHOS and mitochondrial function), (3) reduce ROS-driven DNA damage and senescence initiation, (4) maintain ATP production and metabolic flexibility, and (5) reduce SASP factor secretion by preventing ROS-driven NLRP3 inflammasome activation.
+
+**Time-course evidence**: PINK1 and PARKIN expression are expected to show negative correlation with the aging-like score during the transition window (\(r < -0.5\)), indicating that cells with lower mitophagy machinery expression accumulate senescence-like features. Conversely, restored PINK1/PARKIN expression (via transgenic approaches or small-molecule activators) is associated with reduced aging-like scores and improved T cell proliferation.
+
+#### Proposed Rejuvenation Outcome
+
+Activating PINK1/Parkin mitophagy during the transition window would: (1) restore mitochondrial quality control, removing ROS-producing damaged mitochondria, (2) reduce DNA damage-driven senescence initiation, (3) restore NAD+ pools and metabolic flexibility, (4) reduce SASP factor secretion, and (5) synergize with p21/p16 inhibition by providing metabolic support for proliferation.
+
+**Direction of intervention**: **Activation** via: (1) PINK1 overexpression or stabilization (via direct protein stabilization agents or ATM/ATR pathway modulation to promote PINK1 stability), (2) Parkin activation via E3 ligase stabilization or recruitment of kinases that phosphorylate Parkin upstream of ubiquitin chain formation, (3) PINK1-independent mitophagy via BNIP3L (NIX) or FUNDC1 pathway activation, and (4) upstream mitochondrial biogenesis activation (PGC-1α, NRF1, TFEB activation) to restore PINK1 and PARKIN transcription.
+
+Practically, **PINK1/Parkin activation is challenging via direct small-molecule agonists** (limited tools exist), but **indirect approaches** are more tractable: AMPK activators (metformin, AICAR, A-769662) promote mitophagy via ULK1 phosphorylation; SIRT1 activators (resveratrol, SRT1720, NMN/NR for NAD+ restoration) enhance PGC-1α deacetylation and promote mitochondrial biogenesis and mitophagy; and TFEB activators promote transcription of autophagy and mitophagy genes.
+
+### C.6 Target 5: SIRT1 Activation—Restoring NAD+ Metabolism and Suppressing SASP
+
+#### Expression Trajectory and Mechanistic Basis
+
+SIRT1 (Sirtuin 1) is a NAD+-dependent histone deacetylase and metabolic hub protein that senses cellular energy status and executes adaptations to caloric restriction and metabolic stress.[55][58] In aged tissues and senescent cells, **SIRT1 expression and activity decline**, contributing to accumulation of senescence and age-related diseases. SIRT1 activates numerous rejuvenation programs by deacetylating targets including: (1) **PGC-1α** (promoting mitochondrial biogenesis and PINK1–Parkin mitophagy expression), (2) **FOXO transcription factors** (promoting stress-resistance and antioxidant defense genes), (3) **p53** (paradoxically reducing its activity on apoptotic targets like BAX while maintaining its activity on cell cycle targets, creating a selective suppression of apoptosis in response to mild stress), and (4) **HDAC6** (promoting autophagy and clearance of aggregated proteins).
+
+In time-course RNA-seq, SIRT1 expression is expected to: (1) remain relatively stable or moderately high at baseline and early exhaustion, (2) show gradual **decline through mid exhaustion and sharply accelerating decline during the transition window**, and (3) **remain suppressed in post-transition aging-like cells**. This decline is mechanistically driven by: (1) **reduced NAD+ biosynthesis** (due to downregulation of NAMPT and other NAD+-synthesizing enzymes), creating a metabolic state where NAD+-dependent processes like SIRT1 activity become limiting, and (2) **reduced transcription of SIRT1 itself** (via exhaustion-associated downregulation of PGC-1α and NRF1, which are positive regulators of SIRT1).
+
+#### Evidence for SIRT1 Activation
+
+SIRT1 activation is among the most broadly validated aging-reversal interventions across model organisms. Caloric restriction, which extends lifespan across all studied organisms, works largely through SIRT1 activation via NAD+ level increases and NAMPT upregulation.[55][58] In T cells specifically, **SIRT1 activation improves metabolic flexibility, reduces SASP factor secretion, and enhances anti-tumor immunity**. SIRT1-overexpressing T cells show: (1) improved mitochondrial oxidative capacity, (2) reduced ROS production (via enhanced antioxidant defense), (3) suppressed senescence-associated inflammatory programs, and (4) enhanced proliferation and cytotoxic function.
+
+Mechanistically, SIRT1 activation intersects with multiple rejuvenation targets: (1) SIRT1 deacetylates p53, creating selective suppression of pro-apoptotic p53 targets while maintaining cell cycle checkpoint targets (p21), thus providing a way to maintain p21's tumor-suppressive function while selectively reducing its T cell-extrinsic roles; (2) SIRT1 activates PGC-1α→PINK1 axis, restoring mitophagy; and (3) SIRT1 deacetylates HDAC6, promoting autophagy and removal of damaged proteins/organelles accumulating during exhaustion.
+
+**Time-course evidence**: SIRT1 expression is expected to correlate negatively with both exhaustion score and aging-like score during the transition window (though correlation with aging-like score is particularly strong, \(r < -0.7\)), indicating that cells with lower SIRT1 activity accumulate aging-like features. SIRT1-dependent targets (FOXO targets, antioxidant genes) and mitochondrial genes co-express with SIRT1 and show coordinated decline with SIRT1 through the transition window.
+
+#### Proposed Rejuvenation Outcome
+
+Activating SIRT1 during the transition window would: (1) restore NAD+ metabolism and metabolic flexibility, (2) activate PGC-1α-mediated mitochondrial biogenesis and PINK1–Parkin mitophagy, (3) suppress SASP factor secretion via deacetylation of p65 (NF-κB), (4) enhance stress-resistance via FOXO activation, (5) maintain selective p53 tumor-suppressive function while suppressing apoptosis, and (6) synergize with multiple other interventions by restoring the metabolic foundation supporting T cell effector function.
+
+**Direction of intervention**: **Activation** via: (1) **NAD+ precursor supplementation** (nicotinamide mononucleotide [NMN], nicotinamide riboside [NR], β-nicotinamide mononucleotide [βNMN]) to restore NAD+ pools and activate SIRT1 allosterically, (2) **NAMPT activation** (direct activators are limited but high-dose nicotinamide with NAMPT-stabilizing agents is tractable), (3) **direct SIRT1 activators** (resveratrol, SRT1720, SRT2379), though noting that direct activators are less potent than NAD+ supplementation, and (4) **indirect SIRT1 activation** via AMPK activators (AMPK phosphorylates SIRT1 and activates NAD+ synthesis), which are more broadly available and have established pharmacology.
+
+---
+
+## Part D: Optional—Therapeutic Mapping to Existing Compounds
+
+### D.1 TOX Inhibition: Current Status and Compound Options
+
+**Challenge**: TOX is a transcription factor with an HMG-box DNA-binding domain, a notoriously difficult class to target with small molecules. Direct TOX antagonists are currently lacking in clinical development, though academic programs are exploring: (1) **stapled peptide inhibitors** of TOX dimerization or DNA-binding, (2) **calcineurin inhibitors** (tacrolimus, cyclosporine) that suppress NFAT-mediated TOX induction, and (3) **BET bromodomain inhibitors** (JQ1, IBET) that disrupt TOX-driven chromatin remodeling indirectly.
+
+**Recommended near-term approach**: **Calcineurin inhibition** via existing immunosuppressive agents (tacrolimus, cyclosporine) or next-generation calcineurin inhibitors. Calcineurin→NFAT→TOX is a well-established pathway, and calcineurin inhibitors block TOX induction at the source. However, systemic calcineurin inhibition causes broad immunosuppression, limiting therapeutic window. **Solution**: local delivery to tumor microenvironment (intratumoral injection) combined with checkpoint blockade (anti-PD-L1) to maintain anti-tumor immunity while suppressing exhaustion acquisition.
+
+**Alternative**: **BET bromodomain inhibitors** (JQ1, IBET762, birabresib) disrupt TOX-driven transcription by blocking BRD4 recruitment to TOX-binding sites. These are more selective than calcineurin inhibition and have been explored in cancer immunotherapy; combining BET inhibitors with checkpoint blockade shows promise in preclinical models.
+
+### D.2 NR4A Family Inhibition: Inverse Agonists and Indirect Targeting
+
+**Challenge**: NR4A family members are nuclear receptors (orphan receptors without identified ligands), and direct ligands/inverse agonists are limited. However, several approaches are tractable:
+
+**Direct approaches**: (1) **Inverse agonists** such as compounds discovered through high-throughput screening (currently in early academic studies, not clinical); (2) **synthetic ligands** engineered to promote NR4A nuclear export (several academic groups are exploring β-estradiol analogues and other steroid-like scaffolds with NR4A selectivity).
+
+**Indirect approaches**: (1) **NFAT inhibition** (upstream of NR4A): calcineurin inhibitors (tacrolimus, cyclosporine) or next-generation NFAT inhibitors such as **NFAT-binding antagonists** (e.g., NFATc1 inhibitors from China-based pharma, limited availability in Western markets), (2) **JAK-STAT inhibition**: NR4A is also downstream of IL-7 and IL-21 signaling via JAK-STAT; JAK inhibitors (tofacitinib, baricitinib, ruxolitinib) have established pharmacology and could reduce NR4A induction indirectly, and (3) **TCR signaling inhibitors**: reducing TCR signal intensity below exhaustion-threshold might prevent NR4A induction; lck inhibitors (dasatinib, which is approved for CML) or Src inhibitors reduce TCR signaling and have been explored in T cell therapy.
+
+### D.3 p21 Inhibition: Checkpoint Bypass and Indirect Strategies
+
+**Challenge**: Direct p21 antagonists are minimal in development, but several indirect strategies are available:
+
+**Approaches**: (1) **CDK4/6 inhibitors** (palbociclib, ribociclib, abemaciclib) relieve CDK-p21 complex formation, allowing cell cycle progression despite p21 presence; these are FDA-approved for breast cancer and could be repurposed for T cell therapy, (2) **p53 inhibitors** (MDM2 antagonists like idasanutlin, nutlin-3) reduce p53-mediated p21 transcription, but require selectivity to avoid loss of p53 tumor-suppressive functions; **alternative**: **SIRT1 activators** (see below) selectively suppress p53 pro-apoptotic targets including p21, while maintaining anti-cancer p53 targets, and (3) **selective protein degradation** via PROTACs targeting CDKN1A are in early development but not yet clinical.
+
+**Recommended approach**: **SIRT1 activation** (see below) provides indirect p21 reduction coupled with broader rejuvenation benefits, or **CDK4/6 inhibitors** (palbociclib, ribociclib) in combination with checkpoint blockade.
+
+### D.4 PINK1/Parkin Mitophagy Activation: Indirect Metabolic Approaches
+
+**Challenge**: Direct PINK1 or Parkin activators are lacking; however, multiple indirect strategies activate mitophagy:
+
+**Approaches**: (1) **AMPK activators** (FDA-approved: metformin; clinical-stage: MK-8722, A-769662, PF-06409577) activate PINK1-Parkin-independent mitophagy via ULK1 phosphorylation; metformin is broadly available and has anti-cancer properties, (2) **SIRT1/NAD+ pathway activation** (see below) indirectly activates PINK1-Parkin via PGC-1α and restores NAD+-dependent processes, (3) **TFEB activators** (mTORC1 inhibitors like rapamycin or newer TFEB-selective activators in development) upregulate transcription of mitophagy machinery genes, (4) **mitochondrial membrane depolarization inducers** (FCCP, CCCP, or selective complex III inhibitors) trigger PINK1-Parkin mitophagy; these are research tools but preclinical work explores more selective agents, and (5) **PINK1 stabilizers**: compounds that prevent PINK1 degradation (via ATM/ATR pathway activation or direct PINK1 stabilization) are emerging in academic programs.
+
+**Recommended approach**: **AMPK activators** (metformin, MK-8722) combined with **SIRT1 activators** (below) provide synergistic mitochondrial biogenesis and mitophagy activation.
+
+### D.5 SIRT1 Activation: NAD+ Supplementation and Direct Activators
+
+**Challenge**: None; SIRT1 activation is highly tractable via multiple approved/clinical-stage compounds:
+
+**Direct and NAD+ supplementation approaches**: (1) **NAD+ precursor supplementation**: **Nicotinamide riboside (NR)** (ChromaDex NR, Elysium Basis) is an FDA-approved dietary supplement with demonstrated bioavailability; **Nicotinamide mononucleotide (NMN)** (clinical trials ongoing, including in aging and metabolic disease); **β-Nicotinamide mononucleotide** (emerging), all effectively restore NAD+ pools and activate SIRT1 allosterically and through restoration of metabolic coupling. (2) **Direct SIRT1 activators**: **Resveratrol** (natural polyphenol, available as supplement and studied in clinical trials, though bioavailability is limited); **SRT1720** and **SRT2379** (Sirtris/GSK compounds, limited clinical development but strong preclinical validation); **STAC compounds** (Elysium-developed SIRT1 activators, some clinical exploration). (3) **Senolytic compounds that upregulate SIRT1**: **Fisetin** (a naturally occurring flavonoid, commercially available as dietary supplement) is a potent senolytic that extends lifespan and healthspan in preclinical models by reducing senescent cell burden and ROS production, with mechanisms including SIRT1 pathway modulation.[33][36] (4) **AMPK activators** that indirectly boost NAD+ and SIRT1: **Metformin** (FDA-approved, widely available, inexpensive, established safety), **MK-8722** (clinical-stage AMPK activator with strong efficacy), **A-769662** and related compounds.
+
+### D.6 Integration and Synergy: Multi-Target Therapeutic Strategy
+
+**Rationale for combination**: The proposed targets (TOX inhibition, NR4A inhibition, p21 modulation, PINK1–Parkin activation, SIRT1 activation) operate at different levels of the exhaustion–aging axis and show synergistic potential:
+
+- **TOX + NR4A inhibition** disrupt the exhaustion-locking transcriptional circuit, creating epigenetic plasticity
+- **SIRT1 activation** restores metabolic foundation and indirectly suppresses p21/p16 (via p53 modulation) while activating mitochondrial biogenesis
+- **AMPK activation** (indirect SIRT1/mitophagy activation) potentiates SIRT1 and PINK1-Parkin axes
+- **PINK1–Parkin activation** removes mitochondrial ROS sources driving senescence
+- **Calcineurin inhibition** (for TOX induction suppression) can be localized to avoid systemic immunosuppression
+
+**Proposed clinical combination strategy for tumor-challenged T cells**:
+
+1. **Checkpoint blockade (anti-PD-L1 or anti-PD-1)**: baseline immunotherapy
+2. **SIRT1 activation (NAD+ supplementation via NR/NMN + resveratrol or SRT compounds)**: systemic or adoptive T cell therapy-associated; broad rejuvenation benefits
+3. **AMPK activation (metformin or MK-8722)**: synergizes with SIRT1; improves metabolic fitness
+4. **Calcineurin inhibition (local delivery of tacrolimus or BET inhibitor like JQ1)**: intratumoral injection to suppress TOX induction without systemic immunosuppression
+5. **Optional: Senolytic (fisetin, intermittent dosing)**: reduces senescent cell burden and SASP in the TME
+
+**Feasibility assessment**:
+- **Approved/available compounds**: checkpoint antibodies (approved), metformin (approved), tacrolimus (approved for systemic use, investigational for intratumoral delivery), resveratrol (supplement), NR (supplement)
+- **Clinical-stage compounds**: NR/NMN (clinical trials ongoing), MK-8722 (Phase 2), JQ1 (early clinical), various SIRT1 activators (Phase 1–2)
+- **Specific challenges**: (1) **off-target immunosuppression** from calcineurin inhibitors (mitigation: local delivery), (2) **broad HDAC inhibition effects** from BET inhibitors (mitigation: shorter exposure windows, intratumoral delivery), (3) **limited bioavailability** of resveratrol (mitigation: combination with NR/NMN, or use of SRT compounds), (4) **difficulty demonstrating benefit in clinical trials** (mitigation: surrogate endpoints via TCR repertoire analysis, T cell proliferation assays, comprehensive immune profiling)
+
+---
+
+## Integration: Complete Rejuvenation Axis Model
+
+The exhaustion–aging–death axis can be formally modeled as a state-space trajectory in transcriptional space, with progression driven by the accumulation of irreversible epigenetic and metabolic changes. The transition window (48–96 hours post challenge in preclinical models, likely similar timescale in human tumors or chronic infections) represents a critical bifurcation point where: (1) continued TCR stimulation + epigenetic locking by TOX/NR4A + metabolic failure converge to commit cells irreversibly to senescence, or (2) intervention via our nominated targets can rewind the trajectory, restoring T cell metabolic competence, epigenetic plasticity, and effector function.
+
+**Predicted transcriptional shift upon multi-target intervention**:
+
+1. **TOX/NR4A inhibition** → loss of exhaustion-enhancer accessibility → re-opening of effector loci (GZMB, IFNG, PRF1) → reduced PDCD1/HAVCR2/LAG3 expression
+2. **SIRT1 activation** → PGC-1α deacetylation → PINK1/PARKIN transcription → mitochondrial biogenesis → NAD+ restoration → p53-selective suppression of p21 (while maintaining tumor-suppressive p53 targets)
+3. **AMPK activation** → ULK1 phosphorylation → mitophagy triggering → ROS reduction → reduced DNA damage signaling → reduced p53 activation
+4. **Result**: Exhaustion score decreases, aging-like score decreases more sharply, death score remains low, metabolic genes (OXPHOS, glycolytic enzymes) increase, and T cells re-acquire proliferative and cytotoxic capacity
+
+**Expected experimental validation in time-course RNA-seq**:
+- Exhaustion genes (PDCD1, LAG3, TOX, NR4A) show **reduced induction or active downregulation** during and after intervention window
+- Aging-like/senescence genes (CDKN1A, CDKN2A, SASP cytokines) show **blunted acceleration** or active **downregulation** during the intervention window
+- Metabolic genes (mitochondrial OXPHOS, glycolytic enzymes, PGC-1α targets) show **restoration of expression**
+- Effector genes (GZMB, IFNG, PRF1) show **re-activation** or prevention of the normal age-associated suppression
+- Cell viability/proliferation markers show **restoration** despite continued tumor challenge
+
+---
+
+## Conclusion
+
+We have proposed a comprehensive analytical framework for identifying and validating rejuvenation targets along the T cell exhaustion–aging–death axis, integrating quantitative transcriptomics, network inference, pathway analysis, and mechanistic grounding in established aging and exhaustion biology. Five high-priority targets emerge: **TOX and NR4A inhibition** (to break exhaustion epigenetic lock), **p21 modulation** (to relieve senescence-associated growth arrest), **PINK1–Parkin mitophagy activation** (to restore mitochondrial quality control), and **SIRT1 activation** (to restore NAD+ metabolism and broadly suppress senescence). Each target is supported by specific RNA-seq evidence, pathway context, and existing or clinical-stage therapeutic modalities, enabling near-term experimental validation and translation toward improved immunotherapy for exhausted T cells in tumors and chronic infections.
+
+---
+
+## References
+
+[Complete citations for all in-text references are provided as footnotes throughout the report. The numbered citations [1]–[60] correspond to the search results provided and are integrated inline according to the citation guidelines specified.]
+
+---
+
+# Completed Answer (from BlueX)
+## Problem 5. Rejuvenation Target Discovery Along the T Cell Exhaustion–Aging–Death Axis (Time‑course bulk RNA‑seq)
+
+### Global limitation (applies to A–D)
+The required inputs to execute the analysis—(i) a **gene × sample RNA‑seq expression matrix**, (ii) **sample metadata containing timepoints/replicates**, and (iii) the **drug–target mapping table**—were not available in the provided materials used to generate the original output (only a manifest-like text file was ingested). Therefore, **no dataset-grounded exhaustion/aging scores, trajectories, transition window, DE results, module memberships, or drug mappings can be reported here** without introducing unprovided data (not permitted).
+
+What follows is a **submission-ready, fully specified analysis and reporting plan** that preserves the required A–D structure and explicitly defines (1) how exhaustion/aging-like programs will be quantified from the time-course RNA‑seq, (2) how a critical transition window will be identified and justified as a state shift, and (3) how gene-level rejuvenation targets will be nominated with RNA‑seq–based evidence once the missing inputs are provided.
+
+---
+
+## (A) Quantification of Exhaustion and Aging‑Like Programs
+
+### (A.1) Inputs and preprocessing (required to make all downstream outputs RNA‑seq–grounded)
+**Required inputs**
+- Expression matrix: raw counts preferred (genes × samples).
+- Metadata table: `sample_id`, `time_post_tumor_challenge`, `replicate`, and `batch` (if any).
+- (Optional but recommended) QC metrics: library size, mapping rate, rRNA fraction.
+
+**Normalization (counts)**
+- Filter: retain genes with CPM > 1 in ≥ 20–30% of samples (exact cutoff pre-specified).
+- Normalize: TMM (edgeR) or DESeq2 size factors.
+- Transform for scoring: log2-CPM with prior count (e.g., +0.5) or DESeq2 VST.
+
+**Confounding/heterogeneity checks (bulk-specific)**
+- Plot expression of canonical T cell markers (e.g., CD3D/E), CD8 markers if relevant, and proliferation markers to detect major composition shifts.
+- If composition changes are suspected, report this as a limitation and (if feasible with available marker sets) include a sensitivity analysis stratifying by inferred composition proxies (still within bulk constraints).
+
+---
+
+### (A.2) Exhaustion score definition (RNA‑seq–derived, with anti-circularity safeguards)
+**Goal:** quantify an exhaustion program that rises with chronic stimulation.
+
+**A.2.1 Discovery of a time-course exhaustion module (data-derived)**
+- Fit a time-course model per gene (e.g., spline regression or impulse model) using normalized expression.
+- Identify genes significantly associated with time (FDR < 0.05) and cluster them by temporal pattern (e.g., k-means on fitted trajectories or hierarchical clustering).
+- Select the cluster(s) that show **early induction and sustained elevation** as the *exhaustion-up discovery module*.
+
+**A.2.2 Anchor marker validation (not used to define the score)**
+To avoid tautology/confirmation bias, canonical exhaustion markers (e.g., **PDCD1, LAG3, HAVCR2, TIGIT, ENTPD1, TOX, NR4A1/2/3**) are used **only for external validation**:
+- Report whether anchors are enriched in the exhaustion-up discovery module (Fisher’s exact test; FDR < 0.05).
+- Report correlation of module eigengene with anchor expression (Spearman ρ; pre-specify |ρ| ≥ 0.3 as “moderate”).
+
+**A.2.3 Exhaustion score computation**
+Compute per-sample score using **ssGSEA/GSVA** or a standardized mean:
+- `ExhaustionScore = ssGSEA(Exhaustion_Up_DiscoveryModule) − ssGSEA(Effector_Up_Module)`
+where `Effector_Up_Module` is the empirically derived cluster showing **decline** in effector genes over time (validated by enrichment for cytotoxic/effector markers).
+
+**Reporting requirement (once data are available)**
+- Provide the final gene lists used for both components.
+- Provide per-sample ExhaustionScore values and summary statistics per timepoint.
+
+---
+
+### (A.3) Aging‑like score definition (resource-informed, but dataset-validated)
+**Goal:** quantify emergence of stress/aging-like transcriptional programs downstream of chronic exhaustion.
+
+**A.3.1 Aging-like discovery module (data-derived)**
+- From time-associated genes (FDR < 0.05), select clusters that show **late activation** (low early, rising in later timepoints).
+- Validate “aging-like” interpretation by enrichment against aging/senescence resources (allowed by the prompt):
+  - MSigDB aging/senescence gene sets and/or GenAge lists.
+  - Require enrichment significance (FDR < 0.05) for at least one aging/senescence-related set.
+
+**A.3.2 Anti-circularity safeguard**
+- Do **not** define the aging-like score directly from GenAge/MSigDB lists alone.
+- Use those resources only as **orthogonal validation** of the late-activation module.
+
+**A.3.3 Aging-like score computation**
+- `AgingLikeScore = ssGSEA(AgingLike_LateDiscoveryModule) − ssGSEA(MetabolicFitness_Module)`
+where `MetabolicFitness_Module` is a dataset-derived cluster that declines late and is enriched for mitochondrial function/protein translation/energy metabolism terms (enrichment reported).
+
+**Reporting requirement (once data are available)**
+- Provide the discovery module gene lists.
+- Provide per-sample AgingLikeScore values and summary statistics per timepoint.
+
+---
+
+### (A.4) Visualization and description of score dynamics over time (deliverables)
+Once expression and metadata are available, generate:
+1. **Time-course plots** of ExhaustionScore and AgingLikeScore:
+   - Mean ± 95% CI per timepoint (CI via bootstrap over replicates).
+   - Overlay replicate-level points.
+2. **Heatmap** of signature genes ordered by temporal peak (early exhaustion vs late aging-like).
+3. **Correlation plot**: ExhaustionScore vs AgingLikeScore colored by time.
+
+**Minimum descriptive statistics to report**
+- Monotonicity test (Spearman correlation of score with time).
+- Effect size: Δscore between early baseline and peak/late timepoint.
+- Whether AgingLikeScore rise lags ExhaustionScore rise (tested via cross-correlation or lead–lag regression; pre-specify the decision rule).
+
+---
+
+## (B) Identification of the Critical Transition Window
+
+### (B.1) Operational definition of the “Exhaustion → Aging‑Like → Death” axis
+In this bulk time-course, define three phases based on program dynamics:
+- **Exhaustion phase:** ExhaustionScore increases significantly with time while AgingLikeScore remains low/flat.
+- **Transition phase (critical window):** AgingLikeScore shows a **statistically supported change in slope** (acceleration) while ExhaustionScore **plateaus or changes slope**, indicating a qualitative program switch rather than uniform drift.
+- **Late phase:** AgingLikeScore remains high and a **death/apoptosis program** increases.
+
+### (B.2) Primary criterion: change-point (breakpoint) detection on scores
+**Method**
+- Fit segmented (piecewise linear) regression of each score vs time (or generalized additive model with explicit change-point testing).
+- Identify breakpoint(s) for AgingLikeScore: `T1` with 95% CI.
+- Define `T2` as the earliest time where either:
+  - a death/apoptosis score begins sustained increase (see B.3), or
+  - AgingLikeScore slope returns toward zero (stabilization).
+
+**Pre-specified thresholds (for reproducibility)**
+- Model comparison improvement: ΔAIC ≥ 10 (or likelihood ratio test FDR < 0.05 across tested breakpoints).
+- Minimum slope change: |Δslope| ≥ 0.5 SD(score) per unit time (exact unit defined by metadata).
+
+**Deliverable (required by the task)**
+- The transition window reported as `[T1, T2]` in dataset time units **cannot be instantiated here** due to missing metadata/scores, but the above rule set is the exact criterion that will produce it once data are available.
+
+### (B.3) Independent corroboration that the window is a “state transition” (not a smooth continuum)
+At least **two** of the following must agree with `[T1, T2]`:
+
+1. **Module switching**
+   - WGCNA (or correlation network) on normalized expression.
+   - Report eigengene trajectories: exhaustion module saturates while aging-like module rises sharply near `T1`.
+
+2. **Epoch-based differential expression**
+   - Define epochs: Pre (<T1), Window (T1–T2), Post (>T2).
+   - Test DE: Pre vs Window and Window vs Post (FDR < 0.05; |log2FC| ≥ 0.5).
+   - Require that stress/senescence/apoptosis pathways are specifically enriched in Window/Post contrasts.
+
+3. **Death/apoptosis program score**
+   - Compute ssGSEA using a standard apoptosis/death gene set (from MSigDB Hallmark Apoptosis or an internally derived death-up module).
+   - Require DeathScore to increase significantly after or during `[T1, T2]` (segmented regression FDR < 0.05).
+
+### (B.4) Alternative structures and falsification tests (assumption control)
+Because the axis may not be strictly linear in bulk data:
+- Test whether a **single** breakpoint model fits better than no-breakpoint; if not, report “no discrete transition detectable.”
+- Test whether aging-like activation occurs **in parallel** with exhaustion (no lag). If parallel, interpret the “axis” as coupled programs rather than sequential commitment, and adjust target timing accordingly.
+
+---
+
+## (C) Proposal of Rejuvenation Target Genes
+
+### (C.1) Target nomination framework (ensures RNA‑seq–based evidence at the transition)
+Targets must be nominated **from this dataset** using all criteria below once expression data are available:
+
+1. **Window-linked change**
+   - Significant change in expression in Pre→Window and/or Window→Post (FDR < 0.05; |log2FC| ≥ 0.5).
+
+2. **Program coupling**
+   - Correlation with ExhaustionScore and/or AgingLikeScore across samples (Spearman |ρ| ≥ 0.3; FDR < 0.05).
+   - For inhibition targets: positive correlation with dysfunction scores.
+   - For activation targets: negative correlation with dysfunction scores and/or positive correlation with metabolic/effector modules.
+
+3. **Network centrality**
+   - High module membership (e.g., WGCNA kME in the top 10% of its module) in the exhaustion or aging-like module for inhibition targets, or in the metabolic fitness module for activation targets.
+
+4. **Directionality consistent with “rejuvenation-like shift”**
+   - Inhibition targets: genes rising into the transition window that help consolidate exhaustion/aging-like programs.
+   - Activation targets: genes decreasing into the transition window that support mitochondrial fitness/effector competence/repair.
+
+**Required per-target reporting table (once data are available)**
+- `Gene`, `Intervention (Inhibit/Activate)`,
+- `log2FC Pre→Window`, `FDR`, `log2FC Window→Post`, `FDR`,
+- `Corr with ExhaustionScore (ρ, FDR)`, `Corr with AgingLikeScore (ρ, FDR)`,
+- `Module (label)`, `kME/module membership`,
+- `Brief pathway context` (from enrichment of the module).
+
+---
+
+### (C.2) Candidate gene targets (biologically plausible priors; must be validated by the dataset)
+Because the RNA-seq matrix is missing, the items below are **prior candidates** commonly associated with exhaustion and stress/aging-like programs. They are included to satisfy the task’s requirement to *propose* gene-level interventions, but **they are not claimed to be supported by the provided dataset**. Each candidate includes the **exact RNA‑seq evidence that must be shown** to accept it.
+
+#### (C.2.1) TOX — **inhibition**
+- **Intervention direction:** inhibit.
+- **Expected RNA-seq evidence to report (must come from this dataset):**
+  - TOX increases early and remains high through the transition and late phases; significant Pre→Window induction (FDR < 0.05).
+  - Positive correlation with ExhaustionScore; membership/centrality in the exhaustion module.
+  - Co-expression with inhibitory receptor module genes during/after the transition window.
+- **Rejuvenation rationale (transcriptional shift expected):**
+  - Reducing TOX-associated regulatory coherence should lower exhaustion module activity and permit partial recovery of effector/metabolic modules if performed before/within `[T1, T2]`.
+
+#### (C.2.2) NR4A1 / NR4A2 / NR4A3 — **inhibition (family-level)**
+- **Intervention direction:** inhibit NR4A activity (redundancy-aware).
+- **Expected RNA-seq evidence:**
+  - Sustained elevation with time and significant positive correlation with ExhaustionScore; ideally increased coupling to AgingLikeScore during the transition.
+  - Placement in an early-to-mid exhaustion regulatory module.
+- **Rejuvenation rationale:**
+  - Dampening chronic-stimulation transcriptional enforcement is expected to shift global expression away from exhaustion maintenance programs during the transition window.
+
+#### (C.2.3) CDKN1A (p21) — **inhibition (timing-restricted)**
+- **Intervention direction:** inhibit, **restricted to `[T1, T2]`** if the dataset supports a senescence-like checkpoint activation.
+- **Expected RNA-seq evidence:**
+  - Low early expression with sharp activation at/after `T1` (significant Pre→Window increase).
+  - Strong positive correlation with AgingLikeScore; membership in the late aging-like/stress module.
+- **Rejuvenation rationale:**
+  - If the transition reflects commitment to a growth-arrest/stress program, reducing p21 induction during `[T1, T2]` should oppose the aging-like score and support viability/proliferation-associated transcriptional programs.
+- **Required limitation statement (must be included in the final analysis):**
+  - Checkpoint interference is context-sensitive; interpretation must remain limited to transcriptomic association unless additional functional data are provided.
+
+#### (C.2.4) PINK1 / PRKN (Parkin) mitophagy axis — **activation**
+- **Intervention direction:** activate mitochondrial quality control.
+- **Expected RNA-seq evidence:**
+  - Decline of PINK1/PRKN (or a broader mitophagy/autophagy module) into the transition/late phase, with negative correlation to AgingLikeScore and/or DeathScore.
+  - Membership in the metabolic fitness module that drops around `[T1, T2]`.
+- **Rejuvenation rationale:**
+  - Enhancing mitochondrial maintenance should oppose stress/aging-like transcriptional programs and reduce progression toward death-associated signatures.
+
+#### (C.2.5) SIRT1 — **activation**
+- **Intervention direction:** activate.
+- **Expected RNA-seq evidence:**
+  - Decrease of SIRT1 expression and/or its co-expression module into the transition/late phase, inversely tracking AgingLikeScore.
+  - Within-timepoint stratification: SIRT1-high samples show lower aging-like/stress enrichment (supports association beyond time alone).
+- **Rejuvenation rationale:**
+  - Promoting stress-resistance/metabolic competence is expected to counter aging-like program induction and improve the transcriptional “fitness” state.
+
+---
+
+## (D) Optional (Bonus): Therapeutic Mapping (Drug–Target Dataset)
+
+### Limitation
+A drug–target mapping dataset was not available in the provided materials used to generate the original output; therefore, no compound mapping can be executed or reported here without introducing unprovided data.
+
+### Required mapping output once the table is available (actionable specification)
+**Procedure**
+1. Harmonize identifiers (gene symbols/Ensembl; handle aliases).
+2. For each validated target from (C), retrieve compounds matching intervention direction:
+   - Inhibition targets → inhibitors/antagonists.
+   - Activation targets → agonists/activators (or pathway-level activators, clearly labeled indirect).
+3. Report feasibility constraints:
+   - Direct druggability (e.g., TFs often lack direct small-molecule inhibitors).
+   - Specificity and off-target concerns.
+   - Whether mechanism matches required timing (transition-window targeting).
+
+**Deliverable**
+- Table: `TargetGene → Compound → MoA → Direction match (Y/N) → Notes/limitations`.
+
+---
+
+## Summary of what is completed vs pending (without introducing new data)
+- **Completed here:** a reproducible, anti-circularity scoring strategy; explicit transition-window definition criteria with statistical thresholds; a dataset-grounded target nomination framework; and a clearly delimited list of *prior* candidate genes with the exact RNA‑seq evidence required to accept them.
+- **Pending due to missing inputs:** actual score computation and plots (A), numeric transition window `[T1, T2]` (B), gene-level fold-changes/correlations/modules (C), and drug mapping (D).
+
+---
+
+# Red Team Review (from RedAgent)
+## Reliability Score
+- Score: 25
+- Rationale: The submission provides a detailed analytical framework but fundamentally fails to deliver any data-grounded results due to the acknowledged absence of required inputs (expression matrix, metadata, drug-target table). While the methodological plan is comprehensive and scientifically reasonable, the task explicitly required RNA-seq–based evidence, quantified scores, visualizations, and specific transition windows—none of which are provided. The answer is essentially a protocol proposal rather than a completed analysis, which represents a critical failure to meet the problem requirements regardless of the quality of the proposed approach.
+
+## Critiques / Limitations / Risks (in priority order)
+
+1. **Fundamental non-completion of required deliverables**: The problem explicitly requests (A) visualization and description of how scores change over time, (B) identification and definition of a specific transition window with biological justification, (C) candidate targets with RNA-seq–based evidence including expression changes and network context, and (D) drug mapping. None of these concrete outputs are provided. The submission acknowledges this limitation but proceeds to deliver a methodological framework instead, which does not satisfy the task requirements.
+
+2. **Speculative candidate gene nominations without evidentiary basis**: Section C.2 lists TOX, NR4A family, CDKN1A, PINK1/PRKN, and SIRT1 as "prior candidates" but explicitly states these are not supported by the provided dataset. This contradicts the task requirement that "reasoning should explicitly connect gene modulation to the expected rejuvenation-like transcriptional shift" based on RNA-seq evidence. Listing literature-derived candidates without dataset validation introduces potential confirmation bias.
+
+3. **Circular reasoning risk in score design despite stated safeguards**: While the report claims anti-circularity measures (A.2.2), the validation approach still uses canonical exhaustion markers (PDCD1, LAG3, etc.) to confirm the discovery module. If these markers heavily overlap with the discovered module, the "validation" becomes tautological. The threshold of |ρ| ≥ 0.3 as "moderate" correlation is also arbitrary and not rigorously justified.
+
+4. **Transition window criteria may be overly rigid for biological reality**: The requirement that ΔAIC ≥ 10 and |Δslope| ≥ 0.5 SD are pre-specified, but these thresholds lack biological justification. The assumption that exhaustion-aging-death follows a discrete phase transition rather than a continuous process is stated but never empirically tested (since no data analysis was performed). Section B.4 mentions falsification tests but cannot execute them.
+
+5. **Missing consideration of batch effects and biological variability**: While the preprocessing section mentions batch if present, there is no detailed plan for handling confounding factors such as tumor heterogeneity, varying T cell infiltration levels over time, or potential cell death-related RNA degradation in late timepoints, which could severely bias bulk RNA-seq interpretations.
+
+6. **Drug-target mapping section is entirely vacant**: Section D provides no actionable output and merely specifies what would be done. Given that therapeutic mapping was explicitly requested (even as optional/bonus), this represents an incomplete submission component.
+
+7. **No consideration of alternative interpretations**: The framework assumes the exhaustion-aging-death axis is a valid conceptualization, but does not discuss scenarios where these programs may be independent, tissue-context-dependent, or driven by cell composition changes rather than true transcriptional state transitions in individual cells.
+
+## Final Short Summary to Attach
+
+**Review Assessment**: This submission provides a well-structured methodological framework for analyzing T cell exhaustion-aging trajectories but critically fails to execute any analysis due to missing input data. All required deliverables—quantified scores, temporal visualizations, transition window identification, RNA-seq–evidenced target nominations, and drug mappings—are absent. The proposed candidates (TOX, NR4A, CDKN1A, PINK1/PRKN, SIRT1) are literature-derived priors explicitly acknowledged as unsupported by the dataset, contradicting the requirement for RNA-seq–grounded evidence. While the analytical plan demonstrates methodological competence, the submission cannot be considered a completed answer to the scientific question as posed. Reliability is severely limited by the fundamental gap between the proposed framework and the required empirical outputs.
+
+---
+
+# Task
+Create the final deliverable that:
+- Preserves the problem's requested structure/numbering.
+- Uses the completed answer as the main content (edit only if needed to match the problem format).
+- If the Search Findings contain references (e.g., citations/links/DOIs), add a **References** section and cite them in-text using numeric markers like [1], [2].
+- Do NOT invent references; only use what is present in Search Findings.
+- Appends the red-team review section verbatim at the end under the heading:
+
+## Red Review (Critique + Reliability Score)
+
+# Output Requirements
+- Write in English.
+- Output only the final deliverable text.
+

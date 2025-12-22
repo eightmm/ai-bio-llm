@@ -47,9 +47,15 @@ class PlannerLLM(BaseAnalyst):
         """
         Create an analysis plan
         """
-        logger.info("Planner LLM: Creating analysis plan...")
-
+        import time
+        logger.info(f"[PlannerLLM] Creating analysis plan...")
+        logger.info(f"[PlannerLLM]   Model: {self.model}")
+        logger.info(f"[PlannerLLM]   Input files: {len(files)}")
+        logger.info(f"[PlannerLLM]   Problem ID: {brain_output.get('problem_id', 'unknown')}")
+        
+        plan_start = time.time()
         user_prompt = self._build_user_prompt(brain_output, files)
+        logger.info(f"[PlannerLLM]   Prompt length: {len(user_prompt)} chars")
         
         messages = [
             {"role": "system", "content": self.prompts['system']},
@@ -57,12 +63,33 @@ class PlannerLLM(BaseAnalyst):
         ]
 
         try:
+            logger.info(f"[PlannerLLM]   Calling LLM...")
+            llm_start = time.time()
             response = self._call_llm(messages)
-            logger.info("Planner LLM: Plan generated")
-            return self._parse_plan(response)
+            llm_time = time.time() - llm_start
+            logger.info(f"[PlannerLLM]   ✓ LLM responded in {llm_time:.2f}s")
+            logger.info(f"[PlannerLLM]   ✓ Response length: {len(response)} chars")
+            
+            parse_start = time.time()
+            plan = self._parse_plan(response)
+            parse_time = time.time() - parse_start
+            plan_time = time.time() - plan_start
+            
+            logger.info(f"[PlannerLLM]   ✓ Plan parsed in {parse_time:.2f}s")
+            logger.info(f"[PlannerLLM] ✓ Plan created in {plan_time:.2f}s")
+            logger.info(f"[PlannerLLM]   Problem type: {plan.problem_type}")
+            logger.info(f"[PlannerLLM]   Strategy: {plan.processing_strategy}")
+            logger.info(f"[PlannerLLM]   File priority: {plan.file_priority}")
+            logger.info(f"[PlannerLLM]   Focus areas: {plan.focus_areas}")
+            return plan
         except Exception as e:
-            logger.error(f"Planner LLM failed: {e}")
+            plan_time = time.time() - plan_start
+            logger.error(f"[PlannerLLM] ✗ FAILED in {plan_time:.2f}s")
+            logger.error(f"[PlannerLLM] ✗ Error: {type(e).__name__}: {e}")
+            import traceback
+            logger.error(f"[PlannerLLM] ✗ Traceback:\n{traceback.format_exc()}")
             # Return basic default plan
+            logger.warning(f"[PlannerLLM] → Using default plan")
             return AnalysisPlan({
                 "processing_strategy": "sequential", 
                 "analysis_approach": "Default sequential processing due to planner failure"

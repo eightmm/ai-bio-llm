@@ -1,0 +1,324 @@
+# Problem
+Problem 2. [Predicting Cellular Aging and Disease Progression from TERRA Modification Patterns]
+
+TERRA (Telomeric Repeat-containing RNA) plays a critical role in regulating telomere length, replication stability, and genome integrity. Emerging evidence suggests that specific RNA modification patterns—such as m6A, pseudouridine, and m5C—on TERRA molecules may serve as early molecular indicators of cellular aging and disease progression.
+In this problem, you are asked to design an AI-based multimodal predictive framework that infers cellular aging status or disease progression probability from TERRA modification patterns, and explicitly visualizes the functional contribution of individual RNA modifications.
+
+Objective
+Design an integrated predictive framework that:
+1.	Predicts cellular aging or disease progression probability from TERRA-related multi-omics data
+2.	Quantifies and visualizes the functional contribution of individual RNA modification types
+3.	Provides mechanistic interpretability linking molecular features to biological pathways
+
+Task
+You must propose a framework that includes all three modules (A–C) described below.
+For each module, clearly specify:
+1.	Data types and AI tools used, with scientific justification
+2.	Alternative design choices and why they were not selected
+3.	How the module’s outputs feed into the next stage
+
+Module A: Multimodal Data Integration and Normalization
+Integrate heterogeneous data sources related to TERRA biology into a unified representation.
+
+Data Modalities (examples)
+•	Transcriptomic data
+o	Total RNA-seq
+o	Single-cell RNA-seq
+•	Epigenetic / RNA modification data
+o	RNA modification maps (e.g., m6A, Ψ, m5C)
+o	MeRIP-seq / miCLIP
+o	ChIP-seq related to telomere-associated factors
+•	Imaging data
+o	Telomere FISH
+o	TERRA RNA-FISH
+o	Super-resolution imaging (STED / SIM)-derived telomere morphology metrics
+
+Module B: Predictive Model Design
+Design a model that transforms the integrated multimodal representation into aging or disease probability predictions.
+
+Module C: Model Interpretation and Evaluation
+Explain how model predictions are interpreted and evaluated. 
+
+
+---
+
+# Completed Answer
+## Integrated AI Framework Objective
+Design an integrated predictive framework that:
+1. **Predicts cellular aging or disease progression probability** from TERRA-related multi-omics + imaging data.
+2. **Quantifies and visualizes the functional contribution of individual RNA modification types** (m6A, pseudouridine/Ψ, m5C), both globally and per-sample.
+3. **Provides mechanistic interpretability** by linking high-impact molecular features to telomere/replication stress/DNA damage response and related biological pathways.
+
+**Assumption / limitation upfront:** no dataset-specific analysis results were provided (the data analysis step was skipped), so the response below is an execution-ready *design* rather than a report of measured performance.
+
+---
+
+# Module A: Multimodal Data Integration and Normalization
+
+### (1) Data types and AI tools used, with scientific justification
+
+**A.1 Inputs (per sample / patient / timepoint where available)**
+- **Transcriptomic**
+  - Bulk total RNA-seq (gene-level counts; optionally repeat-aware TERRA-related quantification).
+  - scRNA-seq (cell-level counts; used to derive cell-type composition and cell-state signatures).
+- **Epigenetic / RNA modification**
+  - RNA modification maps for **m6A, Ψ, m5C** from MeRIP-seq/miCLIP and/or direct RNA nanopore modification callers.
+  - ChIP-seq for telomere-associated factors and/or histone marks relevant to telomere/TERRA regulation.
+- **Imaging**
+  - Telomere DNA-FISH and TERRA RNA-FISH images; optionally STED/SIM-derived telomere morphology metrics.
+
+**A.2 Modality-specific preprocessing (what to read, what to compute)**
+- **Bulk RNA-seq**
+  - Read: raw gene count matrix + sample metadata (batch, platform, phenotype labels/time-to-event if present).
+  - Compute: normalization (e.g., DESeq2 VST or TPM), QC (library size, mapping rates), batch covariates (SVA/RUV-style factors if needed).
+  - Output: normalized expression matrix; optional telomere maintenance / senescence signature scores.
+- **scRNA-seq**
+  - Read: cell-by-gene count matrix + batch labels.
+  - Compute (AI tool): **scVI** (variational model) to denoise, integrate batches, and learn a latent embedding.
+  - Compute: cell-type annotation (reference mapping or marker-based), then aggregate to sample-level features (cell-type proportions, senescence-like cell-state abundance, telomere-stress signatures).
+  - Output: sample-level scRNA-derived feature vector + optional cell-level embeddings for deeper interpretability.
+- **RNA modifications (m6A/Ψ/m5C)**
+  - Read: peak calls (MeRIP-seq), site calls (miCLIP), or per-read/per-site probabilities (nanopore callers).
+  - Compute: per-sample **modification feature blocks kept separate by type**:
+    - per-site/per-peak intensity or probability,
+    - coverage/depth features (to control detection confidence),
+    - genomic context relative to subtelomeric regions / known TERRA-producing loci (when definable),
+    - optional sequence-context indicators (e.g., motif presence) as metadata features.
+  - Output: three aligned matrices (**m6A block**, **Ψ block**, **m5C block**) + detection QC metrics (IP efficiency, reproducibility, coverage).
+- **ChIP-seq**
+  - Read: aligned BAMs and/or peak calls + input controls.
+  - Compute: normalized signal over telomere-proximal/subtelomeric bins and peaks (CPM/RPGC-style), QC metrics (FRiP, cross-correlation), peak-by-sample matrix.
+  - Output: chromatin/occupancy feature matrix + QC.
+- **Imaging (FISH / super-resolution)**
+  - Read: multichannel microscopy images per nucleus/cell.
+  - Compute (AI tools):
+    - segmentation with **Cellpose** (nuclei and foci),
+    - engineered features: foci count, intensity distribution, clustering/spread, colocalization metrics (TERRA–telomere proximity),
+    - optional learned embeddings using a vision backbone (e.g., ViT/DINO-style encoder) fine-tuned on your microscopy domain.
+  - Output: per-sample imaging feature vector (aggregated across cells) + per-cell distributions if needed for heterogeneity.
+
+**A.3 Cross-modal integration (core AI tool)**
+- Use a **multimodal deep generative integration model**: a **product-of-experts (PoE) multimodal VAE** conceptually extending MultiVI-style integration beyond two modalities.
+  - Rationale: handles **nonlinear relationships**, **heterogeneous distributions** (counts vs continuous vs embeddings), and **missing modalities** without discarding samples.
+  - Key design choice for interpretability requirement (2): keep **m6A, Ψ, m5C as separate input blocks** with distinct encoders so attribution can be computed per modification type.
+
+**A.4 Module A outputs**
+1. **Unified shared latent embedding** `z_shared` (sample-level): the integrated representation used for prediction.
+2. **Modality-specific embeddings** `z_modality` (optional): preserve what each modality uniquely contributes.
+3. **Retained high-resolution modification blocks** (m6A/Ψ/m5C feature matrices): required later to quantify and visualize modification-type contributions at site/peak level.
+4. **QC report**: reconstruction error per modality, missing-modality rates, batch association checks, and outlier samples.
+
+---
+
+### (2) Alternative design choices and why they were not selected
+- **Simple concatenation + ComBat/Harmony + PCA/UMAP**
+  - Not selected as primary because it (i) ignores modality-specific distributions, (ii) struggles with systematic missingness, and (iii) yields embeddings that are harder to use for principled uncertainty and imputation.
+- **MOFA+ (linear Bayesian factor model) as the primary integrator**
+  - Useful as a baseline, but not selected as primary because linear factors may underfit nonlinear cross-modal interactions (especially with imaging embeddings and complex modification–expression dependencies).
+- **Pairwise-only integration (e.g., integrate scRNA with one other modality)**
+  - Not selected because the goal explicitly requires multimodal prediction and mechanistic linking across layers (modifications ↔ chromatin ↔ expression ↔ telomere morphology).
+
+---
+
+### (3) How Module A outputs feed into the next stage
+- `z_shared` becomes the **main compact input** to Module B (improves robustness and reduces dimensionality).
+- The **separate m6A/Ψ/m5C blocks** and modality-specific embeddings are passed alongside `z_shared` (or tokenized) so Module B can:
+  - learn modification-specific effects,
+  - preserve site/peak-level information needed for Module C attributions and visualization.
+- QC flags can be used to **exclude** or **down-weight** low-quality samples during model training.
+
+---
+
+# Module B: Predictive Model Design
+
+### (1) Data types and AI tools used, with scientific justification
+
+**B.1 Prediction targets**
+- **Aging status** (binary or multi-class; e.g., young/intermediate/aged), and/or
+- **Disease progression probability** (binary classification), and/or
+- **Time-to-event progression** (survival risk score with censoring handled).
+
+**B.2 Model architecture (primary)**
+- **Multimodal Transformer predictor** with explicit **modification-type tokenization**:
+  - Inputs are represented as tokens from:
+    - `z_shared` (context token),
+    - m6A tokens, Ψ tokens, m5C tokens (site/peak/bin tokens),
+    - expression tokens (bulk/sc-derived),
+    - ChIP tokens,
+    - imaging tokens (engineered features and/or learned embeddings).
+  - Self-attention enables learning **cross-feature interactions** (e.g., “specific modification patterns + telomere morphology + DDR expression state”).
+  - Missing modalities handled via **masking** + modality-dropout during training.
+
+**B.3 Output heads**
+- Classification head for aging/disease probability.
+- Optional survival head (e.g., DeepSurv-style risk score) for progression timing.
+
+**B.4 Training procedure (concrete, execution-ready)**
+- Split strategy: **subject-level** split; if longitudinal, enforce **time-based** split (train early → test later).
+- Loss:
+  - weighted cross-entropy / focal loss for imbalanced classification,
+  - Cox partial likelihood (or discrete-time hazard loss) for survival.
+- Regularization:
+  - dropout, weight decay,
+  - modality dropout (randomly hide entire modalities during training).
+- Calibration:
+  - temperature scaling on a validation set to improve probability calibration.
+- Uncertainty (optional but recommended):
+  - MC dropout or deep ensembles to provide confidence intervals on risk.
+
+**B.5 Module B outputs**
+1. Per-sample **aging probability / disease progression probability** (and survival risk score if applicable).
+2. Saved intermediate signals for Module C:
+   - gradients w.r.t. tokens/features,
+   - token embeddings,
+   - (optional) attention matrices (used cautiously, not as sole explanation).
+
+---
+
+### (2) Alternative design choices and why they were not selected
+- **XGBoost / Random Forest on flattened concatenated features**
+  - Strong baseline but not primary: limited ability to model high-dimensional interactions across many tokenized site-level modification features and imaging embeddings; missing-modality handling is less principled.
+- **Graph Neural Network over locus–gene–pathway graphs**
+  - Biologically appealing, but requires a high-confidence graph prior (often incomplete/uncertain for TERRA loci and repeat-associated mapping). More brittle to graph misspecification; better as a later extension once priors are curated.
+- **Mixture-of-Experts (MoE)**
+  - Can work well at scale but increases training complexity and stability requirements; not necessary as the first-pass design.
+
+---
+
+### (3) How Module B outputs feed into the next stage
+- Predictions (probabilities/risk scores) are passed to Module C for:
+  - performance evaluation (discrimination, calibration, clinical utility),
+  - mechanistic interpretation.
+- Saved gradients/embeddings enable Module C to compute:
+  - modification-type importance,
+  - site/peak-level attributions,
+  - cross-modal interaction summaries.
+
+---
+
+# Module C: Model Interpretation and Evaluation
+
+### (1) Data types and AI tools used, with scientific justification
+
+**C.1 Quantifying contribution of each RNA modification type (m6A vs Ψ vs m5C)**
+- **Block-wise ablation tests (primary, model-agnostic)**
+  - Evaluate the trained model with each modification block removed/masked:
+    - Full model (all modifications),
+    - No m6A,
+    - No Ψ,
+    - No m5C.
+  - Quantify contribution as **Δ-performance** (e.g., drop in AUROC/C-index) per ablation.
+  - Justification: directly addresses requirement (2) at the modification-type level in a robust, easy-to-communicate way.
+
+- **Attribution at site/peak level (primary, model-aware)**
+  - Use **Integrated Gradients** or **DeepSHAP** on the modification tokens to compute per-feature attribution scores:
+    - signed contribution to increased/decreased risk,
+    - aggregated per modification type, per genomic bin, and per sample.
+
+**C.2 Visualization deliverables (explicit requirement)**
+- **Global modification-type contribution plot**
+  - Bar chart of ΔAUROC / ΔC-index from ablations for m6A/Ψ/m5C.
+- **Per-sample “explanation card”**
+  - Top-k contributing m6A/Ψ/m5C sites/peaks (with attribution scores), plus key non-modification drivers (e.g., telomere morphology features) to contextualize.
+- **Genomic-track / Manhattan-style visualization (telomere-proximal/subtelomeric bins)**
+  - x-axis: genomic bins/annotated regions used in your feature construction,
+  - y-axis: aggregated attribution magnitude,
+  - color: modification type (m6A vs Ψ vs m5C).
+- **Heatmap of co-contribution**
+  - Display interaction patterns such as “high m6A attribution + high imaging abnormality attribution” in high-risk samples (computed by correlation of attributions across samples).
+
+**C.3 Mechanistic interpretability linking to pathways (explicit requirement)**
+- Map high-attribution features to gene sets/pathways using:
+  - gene association for modification peaks/sites (as defined by the feature engineering in Module A),
+  - enrichment analysis (GSEA/over-representation) on the implicated genes.
+- Report pathway-level outputs as:
+  - ranked list of enriched pathways relevant to telomere maintenance, DNA damage response, replication stress, chromatin regulation, senescence programs (exact libraries depend on what you load, but the method is fixed).
+- Optional (only if data supports it): **mediation-style analysis**
+  - test whether modification features influence predictions indirectly through expression/chromatin features (requires careful causal assumptions; report as associative/conditional, not definitive causality).
+
+---
+
+### (2) Alternative design choices and why they were not selected
+- **Using attention weights alone as “explanations”**
+  - Not selected as primary because attention is not guaranteed to equal feature importance; kept only as supportive visualization.
+- **LIME / kernel SHAP as the sole approach**
+  - Not selected as primary due to computational cost and instability on very high-dimensional, correlated token spaces; used optionally as a sensitivity check on a reduced feature subset.
+- **Only reporting feature importance without pathway linking**
+  - Not selected because the task explicitly requires mechanistic interpretability tied to biological pathways.
+
+---
+
+### (3) How Module C outputs feed into the next stage (and iterative refinement)
+- If ablation/attribution shows one modification type dominates:
+  - refine Module A feature resolution for that type (more granular bins, better peak confidence filters),
+  - adjust Module B tokenization to emphasize biologically meaningful groupings (e.g., subtelomeric region bins).
+- If certain modalities contribute little or add noise:
+  - simplify the model (reduce tokens), improve QC thresholds, or re-balance modality dropout.
+- High-confidence loci/features from attributions become a **prioritized list** for downstream biological follow-up (outside this computational framework), while clearly labeling that the model provides *predictive/associative* evidence rather than direct proof of causation.
+
+---
+
+## Evaluation Protocol (Module C, required for scientific validity)
+
+**Data splits**
+- Subject-level holdout to prevent leakage.
+- If longitudinal: train on earlier timepoints, test on later timepoints.
+- If possible: external cohort validation (different site/platform).
+
+**Metrics**
+- Classification: AUROC, AUPRC, sensitivity/specificity, balanced accuracy.
+- Survival (if applicable): C-index, integrated Brier score.
+- Calibration: reliability curves + expected calibration error; apply temperature scaling if needed.
+- Robustness:
+  - missing-modality stress tests (drop imaging or ChIP or one modification type at inference),
+  - batch/site generalization checks (stratified performance).
+- Uncertainty reporting: bootstrap confidence intervals for primary metrics; optional ensemble-based predictive intervals.
+
+**Caveats / limitations to report with results**
+- **TERRA/repeat-associated mapping ambiguity** can affect locus assignment of modification peaks; your feature engineering should explicitly encode uncertainty (coverage, mapping quality proxies) and avoid overclaiming locus specificity.
+- **Antibody-based modification assays** (e.g., MeRIP) can introduce batch effects and false positives; include replicate concordance and detection-confidence features.
+- Imaging segmentation/feature extraction is sensitive to staining and microscope settings; enforce imaging QC and batch covariates.
+
+---
+
+## End-to-end Flow Summary (A → B → C)
+1. **Module A** normalizes each modality, builds separate **m6A/Ψ/m5C** feature blocks, extracts imaging embeddings/features, and learns an integrated latent state `z_shared` via multimodal VAE (robust to missing modalities).
+2. **Module B** tokenizes `z_shared` + modality blocks into a multimodal Transformer to output aging/disease progression probabilities (and survival risk if applicable), saving gradients/embeddings for explanations.
+3. **Module C** evaluates performance and delivers interpretability:
+   - modification-type contribution via ablation (m6A vs Ψ vs m5C),
+   - site/peak-level attributions via IG/DeepSHAP,
+   - pathway enrichment to connect molecular drivers to telomere/DDR/senescence biology,
+   - visualization suite to explicitly show how each RNA modification contributes to predictions.
+
+---
+
+# Task
+Critically evaluate the completed answer in relation to the problem, and include BOTH:
+
+1) **Reliability score (0-100)**: a single integer reflecting how well the answer satisfies the requirements and how well-supported it is.
+2) **Critiques / limitations / risks**: missing requirements, weak evidence, assumptions, reproducibility/executability risks, data dependency, etc.
+
+Additional requirement:
+- This output will be appended to `answer_problem_X.txt`, so write it as a **standalone review section** (do not rewrite the answer).
+- **Write in English.**
+
+## Guidelines
+- Be precise and technical rather than vague.
+- Reference specific parts or claims of the report when possible.
+- Frame critiques in neutral, academic language.
+- Do not rewrite the report or propose new experiments unless pointing out their absence as a limitation.
+
+# Output
+Follow this format exactly:
+
+## Reliability Score
+- Score: <integer 0-100>
+- Rationale (3-6 lines): key reasons for the score
+
+## Critiques / Limitations / Risks (in priority order)
+1. ...
+2. ...
+3. ...
+
+## Final Short Summary to Attach
+- ...

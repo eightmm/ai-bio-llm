@@ -1,0 +1,27 @@
+## Reliability Score
+- Score: 72
+- Rationale: The answer demonstrates strong domain knowledge and provides comprehensive differential diagnoses for each incident with plausible mechanistic explanations. However, critical limitations exist: (1) the response does not actually examine the provided artifacts (protocol.md, reference.fa, reads.fastq.gz) to validate claims, making many assertions speculative; (2) the Python script for 1-6 uses a naive exact-match alignment strategy inappropriate for real Ribo-seq data; (3) several diagnoses assume protocol defects without verification against protocol.md; (4) numeric thresholds (e.g., A260/230 ≥ 1.8, entropy ≥ 1.5 bits) are presented as recommendations without empirical justification from the provided data.
+
+## Critiques / Limitations / Risks (in priority order)
+
+1. **Failure to ground analysis in provided artifacts**: The answer explicitly states "this interface does not include the actual contents of protocol.md, reference.fa, or reads.fastq.gz" yet proceeds with recommendations. This contradicts the problem constraint that "core answers must be supported by the protocol text." Without inspecting protocol.md, claims about missing documentation (cleanup endpoints, adapter sequences, UMI specifications) cannot be verified.
+
+2. **Computational pipeline inadequacy for real Ribo-seq**: The exact-match alignment strategy (`tx.find(insert)`) will fail for reads with sequencing errors, indels, or partial matches—common in real data. Standard Ribo-seq workflows use alignment tools (Bowtie, STAR) with mismatch tolerance. This limitation severely compromises the deliverables' validity if the provided reads contain any imperfect matches.
+
+3. **UMI extraction heuristic is fragile**: The entropy-based UMI window inference assumes the UMI is in the first 25 bases and relies on a threshold of 1.5 bits. This may fail if: (a) the UMI is elsewhere in the read structure, (b) the read has quality issues affecting base composition, or (c) the protocol uses a different architecture. Without protocol.md verification, this is speculation.
+
+4. **Incident E diagnosis overreaches**: The claim that "missing 5′ adenylation on a pre-adenylated adapter" is the most critical mismatch assumes a specific ligation chemistry not confirmed from protocol.md. The ranking of modification failures lacks direct evidential support.
+
+5. **Arbitrary QC thresholds without calibration**: Numeric gates (A260/230 ≥ 1.8, entropy ≥ 1.5 bits, dedup fraction ≥ 0.2) are presented as "recommended starting points" but are not derived from the provided dataset or validated against successful runs. These may be inappropriate for the specific experimental context.
+
+6. **Missing deliverable validation**: The script does not verify its outputs against expected formats or include error handling for edge cases (empty files, malformed FASTQ, zero-length transcripts). The HTML report generation lacks proper escaping for all user inputs and could fail silently.
+
+7. **Incident C analysis conflates causes**: The response acknowledges that under-digestion vs. broad size selection are "partially inseparable" but proposes length-stratified periodicity as a discriminator. However, this assumes reads.fastq.gz contains length-heterogeneous footprints, which hasn't been verified.
+
+8. **Periodicity assessment is methodologically weak**: Using raw 5′ start position frame distribution as a periodicity proxy without P-site offset optimization is suboptimal. The "offset-search heuristic" mentioned is not actually implemented in the provided script—the code only computes frame counts at the 5′ end without offset adjustment.
+
+9. **No validation that the pipeline produces expected outputs**: The answer provides a script but offers no test case, expected output examples, or verification that the script runs successfully on the provided files.
+
+## Final Short Summary to Attach
+
+This response provides well-reasoned differential diagnoses for Incidents A–E with appropriate mechanistic reasoning and prioritization. However, its reliability is substantially limited by: (1) failure to examine the provided artifacts (protocol.md, reads.fastq.gz, reference.fa) despite explicit problem requirements; (2) a computational pipeline using overly simplistic exact-match alignment unsuitable for real sequencing data; (3) unvalidated numeric thresholds presented as recommendations; and (4) an incomplete P-site offset implementation. The answer would benefit from artifact-grounded verification of claims and a more robust bioinformatics approach. Confidence in incident diagnoses is moderate given the pattern-matching quality, but computational deliverables may not execute correctly or produce meaningful results on actual data.
