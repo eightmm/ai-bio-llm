@@ -62,6 +62,10 @@ python main.py --verbose
   - `03_data_analysis/data_analysis_results.txt` *(스킵/실패 시에도 downstream용으로 항상 생성)*
   - 추가 산출물(있는 경우): `03_data_analysis/data_analysis.md` 또는 `03_data_analysis/data_analysis.json`
 - **역할**: 문제 폴더 내 CSV/TSV 등의 데이터 파일을 찾아 요약/해석 생성
+- **데이터 해결 전략**:
+  - **1단계**: 문제 텍스트에서 LLM 기반 추출 (주요 방법)
+  - **2단계**: 정규식 기반 패턴 매칭 (폴백 방법)
+  - 두 방법을 결합하여 파일 발견률 최대화
 
 ### 04) Blue Draft (`04_blue_draft/`)
 - **에이전트**: `BlueAgent`

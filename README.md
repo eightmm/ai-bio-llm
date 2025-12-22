@@ -62,6 +62,10 @@ For each `problem_*.txt`, `main.py` runs the following steps:
   - `03_data_analysis/data_analysis_results.txt` *(always written for downstream use, even on skip/failure)*
   - Optional: `03_data_analysis/data_analysis.md` or `03_data_analysis/data_analysis.json`
 - **Purpose**: Resolve and summarize local data files (CSV/TSV/etc.) under the problem directory
+- **Data Resolution Strategy**:
+  - **Stage 1**: LLM-based extraction from problem text (primary method)
+  - **Stage 2**: Regex-based pattern matching (fallback method)
+  - Combines both methods to maximize file discovery
 
 ### 04) Blue Draft (`04_blue_draft/`)
 - **Agent**: `BlueAgent`
