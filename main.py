@@ -248,7 +248,11 @@ def run_pipeline(file_path, *, verbose: bool = False):
         with progress_step("[3/7] DataAnalystAgent: analyzing referenced data files"):
             try:
                 with suppress_stdout(not verbose):
-                    analysis_result = data_analyst_agent.run_for_problem(brain_output_path)
+                    # Pass problem_output_dir explicitly to ensure data files are found correctly
+                    analysis_result = data_analyst_agent.run_for_problem(
+                        problem_path=brain_output_path,
+                        problem_dir=problem_output_dir
+                    )
             except Exception as e:
                 status(f"      warning: data analysis failed; continuing with N/A ({type(e).__name__}: {e})")
                 analysis_result = None

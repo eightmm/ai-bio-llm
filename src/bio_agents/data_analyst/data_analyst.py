@@ -73,7 +73,7 @@ class DataAnalystAgent:
         logger.info(f"DataAnalystAgent initialized with data_dir: {Config.DATA_DIR}")
         logger.info(f"Pipeline: Planner={use_planner}, Summarizer={use_summarizer}, Format={output_format}")
 
-    def run_for_problem(self, problem_path: Union[str, Path]) -> Dict[str, Any]:
+    def run_for_problem(self, problem_path: Union[str, Path], problem_dir: Union[str, Path, None] = None) -> Dict[str, Any]:
         """
         Standard entry point for the pipeline.
         Reads a problem JSON file (output from BrainAgent), performs analysis,
@@ -81,6 +81,8 @@ class DataAnalystAgent:
         
         Args:
             problem_path: Path to the problem JSON file.
+            problem_dir: Optional explicit problem directory where data files are located.
+                        If not provided, will be inferred from problem_path.
             
         Returns:
             Dict containing the analysis results.
@@ -92,38 +94,41 @@ class DataAnalystAgent:
         with open(problem_path, 'r', encoding='utf-8') as f:
             brain_output = json.load(f)
 
-        # Update FileResolver to look in the problem directory first.
-        # problem_path is the Brain output JSON. In the current pipeline it may live under
-        # .../problem_X/01_brain/brain_decomposition.json, while data files live in .../problem_X/.
-        candidate_dirs = []
-        if problem_path.parent.exists():
-            candidate_dirs.append(problem_path.parent)
-        if problem_path.parent.parent.exists() and problem_path.parent.parent != problem_path.parent:
-            candidate_dirs.append(problem_path.parent.parent)
+        # Determine the problem directory where data files are located
+        if problem_dir:
+            # Use explicitly provided problem directory
+            problem_data_dir = Path(problem_dir)
+            logger.info(f"Using explicitly provided problem directory: {problem_data_dir}")
+        else:
+            # Infer from problem_path: brain_decomposition.json is in 01_brain/, data files are in parent
+            # problem_path structure: .../problem_X/01_brain/brain_decomposition.json
+            # data files are in: .../problem_X/
+            candidate_dirs = []
+            if problem_path.parent.exists():
+                candidate_dirs.append(problem_path.parent)  # 01_brain/
+            if problem_path.parent.parent.exists() and problem_path.parent.parent != problem_path.parent:
+                candidate_dirs.append(problem_path.parent.parent)  # problem_X/
+            
+            # Find directory with data files
+            problem_data_dir = None
+            for d in candidate_dirs:
+                if self._has_supported_data_files(d):
+                    problem_data_dir = d
+                    break
+            
+            # Fallback to parent.parent if no data files found
+            if problem_data_dir is None and len(candidate_dirs) > 1:
+                problem_data_dir = candidate_dirs[-1]  # Use problem_X/ as fallback
+            elif problem_data_dir is None and candidate_dirs:
+                problem_data_dir = candidate_dirs[0]
+            
+            if problem_data_dir:
+                logger.info(f"Inferred problem directory: {problem_data_dir}")
 
-        def has_supported_data_files(d: Path) -> bool:
-            try:
-                for p in d.iterdir():
-                    if p.is_file() and p.suffix.lower() in {".csv", ".tsv", ".txt", ".tab", ".xlsx", ".xls", ".json", ".parquet"}:
-                        # Treat pure agent artifacts folder as "no data" if it contains only JSON
-                        if p.suffix.lower() != ".json":
-                            return True
-                return False
-            except Exception:
-                return False
-
-        chosen_dir = None
-        for d in candidate_dirs:
-            if has_supported_data_files(d):
-                chosen_dir = d
-                break
-
-        if chosen_dir is None and candidate_dirs:
-            chosen_dir = candidate_dirs[0]
-
-        if chosen_dir and chosen_dir.exists():
-            logger.info(f"Updating FileResolver to use problem directory: {chosen_dir}")
-            self.file_resolver = FileResolver(chosen_dir)
+        # Update FileResolver to use the determined problem directory
+        if problem_data_dir and problem_data_dir.exists():
+            logger.info(f"Updating FileResolver to use problem directory: {problem_data_dir}")
+            self.file_resolver = FileResolver(problem_data_dir)
             
         # Run analysis
         output = self.analyze(brain_output)
@@ -276,13 +281,14 @@ class DataAnalystAgent:
             resolved_files_ordered = resolved_files
 
         for file_info in resolved_files_ordered:
-            logger.info(f"Analyzing file: {file_info['name']}")
+            logger.info(f"[File {len(file_analyses) + 1}/{len(resolved_files_ordered)}] Starting analysis: {file_info['name']}")
 
             try:
                 analysis = self._analyze_single_file(file_info, brain_output, analysis_plan)
                 file_analyses.append(analysis)
+                logger.info(f"✓ Completed analysis for {file_info['name']}")
             except Exception as e:
-                logger.error(f"Error analyzing {file_info['name']}: {str(e)}")
+                logger.error(f"✗ Error analyzing {file_info['name']}: {type(e).__name__}: {str(e)}")
                 file_analyses.append({
                     'file_path': file_info['path'],
                     'file_name': file_info['name'],
@@ -336,7 +342,13 @@ class DataAnalystAgent:
         file_path = file_info['path']
 
         # Load data
-        df, metadata = self.data_loader.load_file(file_path, sample=True)
+        logger.info(f"Loading data file: {file_info['name']} from {file_path}")
+        try:
+            df, metadata = self.data_loader.load_file(file_path, sample=True)
+            logger.info(f"Successfully loaded {file_info['name']}: {metadata['loaded_rows']} rows, {len(metadata['columns'])} columns (format: {metadata['format']})")
+        except Exception as e:
+            logger.error(f"Failed to load {file_info['name']}: {type(e).__name__}: {e}")
+            raise
 
         # Run LLM analysis with optional plan context
         llm_analysis = self.code_executor.analyze_data(
@@ -414,6 +426,18 @@ class DataAnalystAgent:
             enriched.append(col_info)
 
         return enriched
+
+    def _has_supported_data_files(self, d: Path) -> bool:
+        """Check if directory contains supported data files"""
+        try:
+            for p in d.iterdir():
+                if p.is_file() and p.suffix.lower() in {".csv", ".tsv", ".txt", ".tab", ".xlsx", ".xls", ".json", ".parquet", ".fastq", ".fasta", ".fa", ".bam", ".sam", ".vcf", ".bed", ".pod5"}:
+                    # Treat pure agent artifacts folder as "no data" if it contains only JSON
+                    if p.suffix.lower() != ".json":
+                        return True
+            return False
+        except Exception:
+            return False
 
     def _generate_integration_code(
         self,

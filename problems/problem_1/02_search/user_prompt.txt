@@ -29,7 +29,7 @@ T 세포에서는 항원 인식, 활성화, 분화 등 다양한 기능을 수�
 
 
 ## Core Objective
-Design an integrated analysis strategy to quantify functional similarity between T cell genes by combining expression-based similarity, LLM-derived functional and phylogenetic knowledge, and protein structure similarity, in order to identify gene pairs important for regulation of resting (naive/memory) T cells.
+Design an analysis strategy to quantify functional similarity between T-cell genes by integrating (i) LLM-derived gene functional summaries, (ii) LLM/knowledge-based phylogenetic relatedness, (iii) expression-based similarity from TPM across CD4/CD8 resting (naive/memory) and activated T-cell conditions, and (iv) protein/domain/structure-derived similarity for top expressed resting T-cell genes, then use the integrated similarity score to prioritize gene pairs likely important for regulating T-cell quiescence/resting states.
 
 # Task Details
 
@@ -44,7 +44,63 @@ Using the information above, generate a structured scientific report that addres
 
 
 [List of Sub-Problems to Address]
-- [1_Integrated_Strategy_Design] Integrated Strategy for T Cell Gene Functional Similarity Scoring
-  Description: Propose a comprehensive analysis strategy that uses the provided Q1 features (TPM expression, genelist with ENSMUSG and gene names, multiple T cell states) to construct a unified Functional Similarity Score between genes. The strategy must explicitly address all five requirements: (1) LLM-based gene functional summary generation, (2) LLM-based knowledge-driven phylogenetic tree construction, (3) expression-based gene similarity score generation across resting and activated T cell states, (4) integration of functional, phylogenetic, and expression similarities to identify gene pairs critical for regulation of resting (naive or memory) T cells with supporting biological rationale, and (5) protein structure/domain-based similarity scoring for the top 300 highly expressed genes in resting T cells to predict key regulatory gene pairs.
-  Approach: Outline a pipeline-level plan without executing analyses. For (1), describe using a state-of-the-art LLM to summarize gene functions from gene names and known immunology concepts (e.g., TCR signaling, cytokine response, quiescence). For (2), describe constructing a knowledge-based phylogenetic or functional hierarchy using LLM-inferred evolutionary or family relationships (e.g., transcription factor families, cytokine receptors). For (3), describe computing expression similarity using TPM data (e.g., Pearson/Spearman correlation, distance metrics) across CD4/CD8, resting vs activated conditions. For (4), describe a score integration framework (e.g., weighted or learned composite score) and criteria to prioritize gene pairs relevant to naive/memory T cell regulation. For (5), describe leveraging publicly available protein/domain annotations and structure prediction tools (e.g., AlphaFold 3, domain similarity metrics) to compute structural similarity among top 300 resting T cell genes and integrate this with functional relevance.
+- [SINGLE] Integrated strategy for multi-evidence gene–gene functional similarity scoring and quiescent T-cell gene-pair prioritization
+  Description: Propose an end-to-end analysis strategy (not necessarily execute) using the provided Q1 features (TPM expression; CD4/CD8; naive/memory vs TH0/TH1/TH2/TH17/TREG and timepoints) and genelist (ENSMUSG + gene names) to: (1) generate LLM-based functional summaries per gene; (2) generate a knowledge-based/LLM-assisted phylogenetic relatedness representation (tree or distances) across genes; (3) compute expression-based gene–gene similarity scores; (4) integrate (1)(2)(3) into a unified Function Similarity Score and use it to propose gene pairs likely central to regulation of resting (naive/memory) T-cell states, including evidence/justification and biological functions when available; (5) for the top 300 expressed genes in resting T cells, compute protein domain/structure-based similarity using public protein/domain resources and structure prediction repositories, and use this to further predict gene pairs important for resting-state regulation.
+  Approach: A. Data harmonization & condition labeling (Q1 features + genelist)
+- Map ENSMUSG IDs to gene symbols using genelist.csv; resolve duplicates (e.g., keep highest-expressed transcript/gene row or aggregate).
+- Define sample groups from metadata: Resting = naive + memory (optionally stratify CD4 vs CD8); Activated = TH0/TH1/TH2/TH17/TREG + stimulation timepoints.
+- Standardize TPM: log1p(TPM), optionally z-score per gene across samples; filter low-information genes (e.g., expressed in <X% samples).
+
+B. (1) LLM-based gene functional summary generation (with RAG)
+- Build a retrieval-augmented generation (RAG) corpus for each gene using public text sources (e.g., UniProt entries, NCBI Gene summaries, GO annotations, Reactome/KEGG pathway descriptions, immunology-specific resources).
+- Prompt an LLM to produce a structured summary per gene with fields such as: canonical function, immune/T-cell relevance, known pathways, subcellular location, interaction partners, and “resting/quiescence vs activation” relevance cues.
+- Output format: JSON per gene + confidence fields + citations to retrieved snippets (to reduce hallucination).
+- Optional: also generate an “LLM functional embedding” by embedding the final structured summary (e.g., text embedding model) for downstream similarity.
+
+C. (2) LLM/knowledge-based phylogenetic relatedness (tree or distance matrix)
+- Strategy option 1 (preferred, knowledge-grounded): obtain gene family/orthology/paralogy relationships and evolutionary distances from a curated comparative genomics resource (e.g., Ensembl Compara) using ENSMUSG IDs; represent as a phylogenetic distance matrix among genes (or a tree per family).
+- Strategy option 2 (sequence-driven, modern embedding): fetch protein sequences for genes, compute pairwise distances using ESM-2/ESM protein embeddings; optionally refine within clusters using MSA + FastTree/IQ-TREE. Use this as “phylo_sim.”
+- LLM role: normalize gene family naming, annotate major clades (e.g., cytokine receptors, transcription factors), and produce a “knowledge-based phylogeny narrative” plus a computable distance representation.
+- Output: phylo_sim(g_i,g_j) in [0,1] via transformed evolutionary distance (e.g., exp(-d/τ)).
+
+D. (3) Expression-based similarity score construction
+- Compute gene–gene similarity across all samples and/or stratified views:
+  1) Global co-expression: Pearson/Spearman correlation on log1p(TPM).
+  2) Resting-specific co-expression: correlation within naive+memory only.
+  3) Activation-response similarity: compare differential expression vectors across contrasts (e.g., naive vs each activated subtype/timepoint; memory vs activated). Similarity = correlation of contrast effect-size profiles.
+- Stabilize correlations with shrinkage (e.g., James–Stein) and correct for batch/lineage if needed.
+- Convert to expr_corr_sim in [0,1] (e.g., (1+r)/2), optionally retaining sign separately to detect antagonistic relationships.
+
+E. (4) Integrate (1)(2)(3) into a unified Function Similarity Score + prioritize resting-state regulatory gene pairs
+- Create three similarity matrices: S_expr, S_phylo, S_llm (from summary embeddings and/or LLM-assigned functional category overlap).
+- Integrate using a principled multi-view method:
+  - Similarity Network Fusion (SNF) to combine S_expr/S_phylo/S_llm into S_fused, or
+  - Weighted rank aggregation / Bayesian evidence integration with weights chosen by validation.
+- Define the target notion “important for resting T-cell regulation” and scoring of gene pairs:
+  - Enrichment criteria: high expression in resting (naive/memory), stable expression (low CV) in resting, and coordinated change upon activation (both downregulated or both upregulated, depending on hypothesis).
+  - Add “resting/quiescence relevance” from LLM summaries (e.g., keywords: IL7R, CCR7, TCF7, LEF1, KLF2, FOXO1 pathways) as a prior.
+- Output gene pairs:
+  - Provide top-N pairs by S_fused with constraints emphasizing resting regulation (e.g., both genes in top expressed resting quantile; pair shows strong resting-specific co-expression; LLM summary indicates quiescence/naive-memory maintenance).
+  - For each pair: report evidence components (expr similarity metrics, phylo distance/family, LLM functional overlap) and short biological rationale (omit if none).
+- Validation/quality checks:
+  - Sanity check: known naive/memory modules (IL7R–TCF7–LEF1–CCR7; KLF2–S1PR1 axis) should appear as coherent clusters.
+  - Optional holdout: assess whether S_fused predicts known pathway co-membership better than any single view.
+
+F. (5) Structure/domain-based similarity for top 300 resting-expressed genes + gene-pair prediction
+- Select top 300 genes by mean TPM in resting (naive+memory; optionally per CD4/CD8 then union).
+- Retrieve protein/domain information:
+  - Domains: Pfam/InterPro annotations; compute domain Jaccard/TF-IDF similarity.
+  - Structures: use public predicted structures (e.g., AlphaFold DB when available) or run AlphaFold 3 / ESMFold for missing proteins (strategy-level description acceptable).
+- Compute struct_sim:
+  - Fast structure search: Foldseek all-vs-all among the 300 proteins; convert scores to [0,1].
+  - Optional alignment refinement for top hits: TM-align to compute TM-score.
+  - If full-length is hard: compare domain-level structures/embeddings.
+- Integrate with the earlier S_fused or create an augmented S_fused_plus = f(S_fused, struct_sim, domain_sim) for the 300-gene subset.
+- Prioritize “resting regulation” pairs within the 300 by high structural/domain similarity + high resting-centric expression evidence (to highlight potentially redundant/compensatory regulators or shared pathway components).
+
+G. Deliverables (what the strategy should output)
+- A computable definition of Function Similarity Score (mathematical form + normalization).
+- A ranked table of gene pairs with per-evidence breakdown: expr_corr_sim, phylo_sim, llm_sim, (optional) struct_sim/domain_sim, and an integrated score.
+- Gene modules/clusters derived from the similarity network (e.g., Leiden/Louvain on kNN graph) with annotations indicating resting vs activated association.
+- A short list of top candidate gene pairs for naive/memory regulation with supporting evidence and concise biological notes.
 
