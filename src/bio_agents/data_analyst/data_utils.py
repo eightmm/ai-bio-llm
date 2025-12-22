@@ -7,6 +7,7 @@ Combines functionality of former FileResolver and DataLoader.
 import os
 import re
 import json
+import gzip
 import logging
 import pandas as pd
 from pathlib import Path
@@ -33,6 +34,13 @@ class FileResolver:
 
         # Build file index for fast lookup
         self._file_index = self._build_file_index()
+    
+    @staticmethod
+    def _get_effective_ext(p: Path) -> str:
+        # e.g., ["sample", ".fastq", ".gz"] -> ".fastq.gz"
+        if len(p.suffixes) >= 2 and p.suffixes[-1].lower() == ".gz":
+            return (p.suffixes[-2] + p.suffixes[-1]).lower()
+        return p.suffix.lower()
 
     def _build_file_index(self) -> Dict[str, Any]:
         """Build index of all data files for fast lookup"""
@@ -69,7 +77,7 @@ class FileResolver:
 
             for filename in files:
                 file_path = root_path / filename
-                ext = file_path.suffix.lower()
+                ext = FileResolver._get_effective_ext(file_path)
 
                 if ext in supported_extensions:
                     # Index by filename
@@ -265,11 +273,34 @@ class DataLoader:
         '.xlsx': 'excel',
         '.xls': 'excel',
         '.json': 'json',
-        '.parquet': 'parquet'
+        '.parquet': 'parquet',
+
+        # FASTA
+        '.fa': 'fasta',
+        '.fasta': 'fasta',
+        '.fna': 'fasta',
+        '.faa': 'fasta',
+        '.ffn': 'fasta',
+        '.frn': 'fasta',
+        '.fa.gz': 'fasta',
+        '.fasta.gz': 'fasta',
+
+        # FASTQ
+        '.fq': 'fastq',
+        '.fastq': 'fastq',
+        '.fq.gz': 'fastq',
+        '.fastq.gz': 'fastq',
     }
 
     # Encodings to try in order
     ENCODINGS = ['utf-8-sig', 'utf-8', 'latin1', 'cp949', 'euc-kr']
+
+    @staticmethod
+    def _get_effective_ext(p: Path) -> str:
+        """Get effective file extension, handling .gz compression"""
+        if len(p.suffixes) >= 2 and p.suffixes[-1].lower() == ".gz":
+            return (p.suffixes[-2] + p.suffixes[-1]).lower()
+        return p.suffix.lower()
 
     def __init__(self, max_sample_rows: int = 1000):
         """
@@ -298,7 +329,7 @@ class DataLoader:
             Tuple of (DataFrame, metadata dict)
         """
         file_path = Path(file_path)
-        ext = file_path.suffix.lower()
+        ext = DataLoader._get_effective_ext(file_path)
 
         if ext not in self.SUPPORTED_FORMATS:
             raise ValueError(f"Unsupported file format: {ext}")
@@ -331,6 +362,12 @@ class DataLoader:
             elif format_type == 'parquet':
                 df = self._load_parquet(file_path, n_rows)
                 encoding = 'binary'
+            elif format_type == 'fasta':
+                df = self._load_fasta(file_path, n_rows)
+                encoding = 'utf-8'
+            elif format_type == 'fastq':
+                df = self._load_fastq(file_path, n_rows)
+                encoding = 'utf-8'
             else:
                 raise ValueError(f"Unknown format type: {format_type}")
 
@@ -467,6 +504,92 @@ class DataLoader:
             df = pd.read_parquet(file_path)
         return df
 
+    def _load_fasta(self, file_path: Path, n_rows: Optional[int]) -> pd.DataFrame:
+        """Load FASTA file into DataFrame"""
+        records = []
+        is_gzipped = str(file_path).endswith('.gz')
+        
+        open_func = gzip.open if is_gzipped else open
+        mode = 'rt' if is_gzipped else 'r'
+        
+        with open_func(file_path, mode, encoding='utf-8') as f:
+            seq_id = None
+            sequence = []
+            count = 0
+            
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                    
+                if line.startswith('>'):
+                    # Save previous record
+                    if seq_id is not None:
+                        records.append({
+                            'id': seq_id,
+                            'sequence': ''.join(sequence),
+                            'length': len(''.join(sequence))
+                        })
+                        count += 1
+                        if n_rows and count >= n_rows:
+                            break
+                    
+                    # Start new record
+                    seq_id = line[1:]  # Remove >
+                    sequence = []
+                else:
+                    sequence.append(line)
+            
+            # Save last record
+            if seq_id is not None and (not n_rows or count < n_rows):
+                records.append({
+                    'id': seq_id,
+                    'sequence': ''.join(sequence),
+                    'length': len(''.join(sequence))
+                })
+        
+        return pd.DataFrame(records)
+
+    def _load_fastq(self, file_path: Path, n_rows: Optional[int]) -> pd.DataFrame:
+        """Load FASTQ file into DataFrame"""
+        records = []
+        is_gzipped = str(file_path).endswith('.gz')
+        
+        open_func = gzip.open if is_gzipped else open
+        mode = 'rt' if is_gzipped else 'r'
+        
+        with open_func(file_path, mode, encoding='utf-8') as f:
+            count = 0
+            while True:
+                # FASTQ format: 4 lines per record
+                # Line 1: @ID
+                # Line 2: Sequence
+                # Line 3: +
+                # Line 4: Quality scores
+                
+                seq_id = f.readline().strip()
+                if not seq_id:
+                    break
+                    
+                sequence = f.readline().strip()
+                plus = f.readline().strip()
+                quality = f.readline().strip()
+                
+                if seq_id.startswith('@'):
+                    records.append({
+                        'id': seq_id[1:],  # Remove @
+                        'sequence': sequence,
+                        'quality': quality,
+                        'length': len(sequence),
+                        'avg_quality': sum(ord(c) - 33 for c in quality) / len(quality) if quality else 0
+                    })
+                    count += 1
+                    
+                    if n_rows and count >= n_rows:
+                        break
+        
+        return pd.DataFrame(records)
+
     def _count_total_rows(self, file_path: Path, format_type: str) -> int:
         """Efficiently count total rows in file"""
         try:
@@ -490,6 +613,27 @@ class DataLoader:
             elif format_type == 'json':
                  # Must load to count
                  return -1
+            elif format_type == 'fasta':
+                # Count '>' lines
+                is_gzipped = str(file_path).endswith('.gz')
+                open_func = gzip.open if is_gzipped else open
+                mode = 'rt' if is_gzipped else 'r'
+                try:
+                    with open_func(file_path, mode) as f:
+                        return sum(1 for line in f if line.startswith('>'))
+                except Exception:
+                    return -1
+            elif format_type == 'fastq':
+                # Count total lines and divide by 4
+                is_gzipped = str(file_path).endswith('.gz')
+                open_func = gzip.open if is_gzipped else open
+                mode = 'rt' if is_gzipped else 'r'
+                try:
+                    with open_func(file_path, mode) as f:
+                        line_count = sum(1 for _ in f)
+                        return line_count // 4
+                except Exception:
+                    return -1
         except Exception as e:
             logger.warning(f"Could not count rows: {e}")
             return -1
@@ -536,3 +680,17 @@ class DataLoader:
                     'sample_values': []
                 })
         return info
+
+
+
+if __name__ == "__main__":
+    # Example usage
+    data_dir = "./Q1_input"
+    resolver = FileResolver(data_dir)
+    loader = DataLoader()
+    
+    db_list = "reads.fastq.gz, Q1.genelist.csv"
+    resolved_files = resolver.resolve(db_list)
+    for file_info in resolved_files:
+        df, metadata = loader.load_file(file_info['path'], sample=True)
+        print(f"Loaded {metadata['loaded_rows']} rows from {file_info['name']}")
