@@ -553,3 +553,4 @@ Output the code as a single Python script. Use pandas as pd.
         output = self.analyze(input_json)
         self.save_output(output, output_path)
         return output
+
