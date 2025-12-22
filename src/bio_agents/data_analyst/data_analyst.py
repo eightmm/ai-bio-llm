@@ -104,7 +104,12 @@ class DataAnalystAgent:
         def has_supported_data_files(d: Path) -> bool:
             try:
                 for p in d.iterdir():
-                    if p.is_file() and p.suffix.lower() in {".csv", ".tsv", ".txt", ".tab", ".xlsx", ".xls", ".json", ".parquet"}:
+                    if p.is_file() and p.suffix.lower() in {
+                        ".csv", ".tsv", ".txt", ".tab", ".xlsx", ".xls", ".json", ".parquet",
+                        ".md", ".markdown",  # Markdown files
+                        ".fa", ".fasta", ".fna", ".faa", ".ffn", ".frn",  # FASTA files
+                        ".fq", ".fastq"  # FASTQ files (uncompressed)
+                    }:
                         # Treat pure agent artifacts folder as "no data" if it contains only JSON
                         if p.suffix.lower() != ".json":
                             return True
