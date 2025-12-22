@@ -27,19 +27,19 @@ class Config:
     
     # Brain Agent: Decomposes problems
     # Defaulting to a high-reasoning model
-    MODEL_BRAIN = os.getenv("MODEL_BRAIN", "openai/gpt-5.2-chat")
+    MODEL_BRAIN = os.getenv("MODEL_BRAIN", "openai/gpt-5.2-pro")
     
     # Search Agent: Searches and synthesizes literature
     MODEL_SEARCH = os.getenv("MODEL_SEARCH", "perplexity/sonar-deep-research")
     
     # Blue Agent: Writes initial reports
-    MODEL_BLUE = os.getenv("MODEL_BLUE", "openai/gpt-5.2-chat")
+    MODEL_BLUE = os.getenv("MODEL_BLUE", "openai/gpt-5.2-pro")
     
     # BlueX Agent: Revises reports based on feedback
-    MODEL_BLUEX = os.getenv("MODEL_BLUEX", "openai/gpt-5.2-chat")
+    MODEL_BLUEX = os.getenv("MODEL_BLUEX", "openai/gpt-5.2-pro")
     
     # Red Agent: Critiques reports
-    MODEL_RED = os.getenv("MODEL_RED", "google/gemini-3-pro-preview")
+    MODEL_RED = os.getenv("MODEL_RED", "anthropic/claude-opus-4.5")
 
     # Answer Agent: Composes final deliverable (answer + red review + references when available)
     # Defaults to the same model as BlueX unless overridden.
