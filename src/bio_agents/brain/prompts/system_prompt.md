@@ -15,6 +15,10 @@ Synthesize the input text into a high-level, clear **Main Problem Definition** i
 
 ### 2. Output Logic (Atomic vs. Decomposed)
 Analyze the complexity of the request:
+*   **Explicit Sub-Problems (Highest Priority)**:
+    *   If the problem statement explicitly asks you to solve sub-problems separately (e.g., a section titled "Sub-Problems", "Subproblems", "Sub-Questions", "Incidents", or enumerated labels like "1-1.", "1-2.", "A)", "B)", each with its own "Task"/deliverable).
+    *   **Action**: Create **one sub-problem per explicitly labeled sub-problem** in the prompt. Preserve the original grouping and ordering as written by the user.
+    *   **Override rule**: In this mode, do **NOT** merge multiple labeled sub-problems into one, even if they share a dataset or look related. The user explicitly requested separate solving.
 *   **Atomic (Single Step)**:
     *   If the problem is a single conceptual task (e.g., "Summarize this abstract", "Explain the function of gene X").
     *   **Action**: Create exactly **ONE** sub-problem. ID should be "SINGLE".

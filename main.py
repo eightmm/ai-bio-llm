@@ -23,8 +23,7 @@ from src.bio_agents.data_analyst import DataAnalystAgent
 from src.bio_agents.answer import AnswerAgent
 
 # Configuration
-INPUT_DIR = "problems"
-# OUTPUT_BASE_DIR removed; outputs will be local to problem directories
+# INPUT_DIR will be set from CLI argument or default to "problems"
 SRC_DIR = Path("src/bio_agents")
 
 # Template Paths
@@ -54,8 +53,8 @@ TEMPLATE_PATHS = {
     }
 }
 
-# Dummy file location
-DUMMY_DATA_ANALYSIS = Path(INPUT_DIR) / "dummy_data_analysis.txt"
+# Dummy file location (will be set after INPUT_DIR is determined)
+DUMMY_DATA_ANALYSIS = None  # Will be set in main()
 
 def ensure_dirs(problem_output_dir):
     # Kept for compatibility; current pipeline uses numbered step directories.
@@ -448,7 +447,20 @@ def main():
             "filename (problem_1.txt), number (1), or an explicit path."
         ),
     )
+    parser.add_argument(
+        "--problem-dir",
+        type=str,
+        default="problems",
+        help="Directory containing problem files (default: 'problems').",
+    )
     args = parser.parse_args()
+    
+    # Set INPUT_DIR from CLI argument (local variable)
+    input_dir = args.problem_dir
+    
+    # Set dummy file location now that INPUT_DIR is known (update global)
+    global DUMMY_DATA_ANALYSIS
+    DUMMY_DATA_ANALYSIS = Path(input_dir) / "dummy_data_analysis.txt"
 
     # Ensure dummy data file exists for agents
     if not DUMMY_DATA_ANALYSIS.exists():
@@ -458,11 +470,11 @@ def main():
              
     # Look for problem_*.txt in subdirectories (problems/problem_X/problem_X.txt)
     # Using recursive glob pattern
-    pattern = os.path.join(INPUT_DIR, "**", "problem_*.txt")
+    pattern = os.path.join(input_dir, "**", "problem_*.txt")
     txt_files = glob.glob(pattern, recursive=True)
     
     if not txt_files:
-        status(f"No files matching 'problem_*.txt' found in {INPUT_DIR} and its subdirectories")
+        status(f"No files matching 'problem_*.txt' found in {input_dir} and its subdirectories")
         return
 
     # Optional filtering to run only specific problems
