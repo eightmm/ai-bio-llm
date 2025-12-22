@@ -277,9 +277,9 @@ class DataLoader:
         '.json': 'json',
         '.parquet': 'parquet',
 
-        # Markdown
-        '.md': 'markdown',
-        '.markdown': 'markdown',
+        # Markdown - treat as text
+        '.md': 'text',
+        '.markdown': 'text',
 
         # FASTA
         '.fa': 'fasta',
@@ -368,8 +368,6 @@ class DataLoader:
             elif format_type == 'parquet':
                 df = self._load_parquet(file_path, n_rows)
                 encoding = 'binary'
-            elif format_type == 'markdown':
-                df, encoding = self._load_markdown(file_path, n_rows)
             elif format_type == 'fasta':
                 df = self._load_fasta(file_path, n_rows)
                 encoding = 'utf-8'
@@ -445,34 +443,63 @@ class DataLoader:
         raise ValueError(f"Could not decode {file_path} with supported encodings")
 
     def _load_text(self, file_path: Path, n_rows: Optional[int]) -> Tuple[pd.DataFrame, str]:
-        """Load text file - try TSV first, then CSV"""
-        # First try TSV
-        try:
-            return self._load_tsv(file_path, n_rows)
-        except Exception:
-            pass
-
-        # Then try CSV
-        try:
-            return self._load_csv(file_path, n_rows)
-        except Exception:
-            pass
-
-        # Fallback: load as single column
+        """Load text file - try TSV first, then CSV, with early detection"""
+        # Quick detection: read first few lines to guess delimiter
+        sample_lines = []
+        detected_encoding = 'utf-8'
+        
         for encoding in self.ENCODINGS:
             try:
                 with open(file_path, 'r', encoding=encoding) as f:
-                    lines = []
-                    for i, line in enumerate(f):
-                        if n_rows and i >= n_rows:
-                            break
-                        lines.append(line.strip())
-                df = pd.DataFrame({'content': lines})
-                return df, encoding
+                    sample_lines = [f.readline() for _ in range(min(5, n_rows or 5))]
+                    if sample_lines:
+                        detected_encoding = encoding
+                        break
             except UnicodeDecodeError:
                 continue
-
-        raise ValueError(f"Could not read text file {file_path}")
+        
+        if not sample_lines:
+            raise ValueError(f"Could not read text file {file_path}")
+        
+        # Detect delimiter from sample
+        first_line = sample_lines[0] if sample_lines else ""
+        tab_count = first_line.count('\t')
+        comma_count = first_line.count(',')
+        
+        # Try TSV first if tabs detected
+        if tab_count > comma_count and tab_count > 0:
+            try:
+                return self._load_tsv(file_path, n_rows)
+            except Exception:
+                pass
+        
+        # Try CSV
+        if comma_count > 0:
+            try:
+                return self._load_csv(file_path, n_rows)
+            except Exception:
+                pass
+        
+        # If no clear delimiter, try TSV anyway (most common in bioinformatics)
+        if tab_count > 0:
+            try:
+                return self._load_tsv(file_path, n_rows)
+            except Exception:
+                pass
+        
+        # Fallback: load as single column (plain text file)
+        logger.info(f"Loading {file_path.name} as plain text (no delimiter detected)")
+        try:
+            with open(file_path, 'r', encoding=detected_encoding) as f:
+                lines = []
+                for i, line in enumerate(f):
+                    if n_rows and i >= n_rows:
+                        break
+                    lines.append(line.strip())
+            df = pd.DataFrame({'content': lines})
+            return df, detected_encoding
+        except Exception as e:
+            raise ValueError(f"Could not read text file {file_path}: {e}")
 
     def _load_excel(self, file_path: Path, n_rows: Optional[int]) -> pd.DataFrame:
         """Load Excel file"""
@@ -513,81 +540,89 @@ class DataLoader:
         return df
 
     def _load_markdown(self, file_path: Path, n_rows: Optional[int]) -> Tuple[pd.DataFrame, str]:
-        """Load Markdown file as structured text"""
+        """Load Markdown file as structured text (optimized)"""
+        # Quick encoding detection with first few lines
+        detected_encoding = 'utf-8'
         for encoding in self.ENCODINGS:
             try:
                 with open(file_path, 'r', encoding=encoding) as f:
-                    lines = []
-                    current_section = "content"
-                    line_num = 0
+                    f.read(1024)  # Test read
+                    detected_encoding = encoding
+                    break
+            except UnicodeDecodeError:
+                continue
+        
+        # Parse with detected encoding
+        try:
+            with open(file_path, 'r', encoding=detected_encoding) as f:
+                lines = []
+                line_num = 0
+                
+                for line in f:
+                    line_num += 1
+                    if n_rows and line_num > n_rows:
+                        break
                     
-                    for line in f:
-                        line_num += 1
-                        if n_rows and line_num > n_rows:
-                            break
+                    stripped = line.strip()
+                    
+                    # Skip empty lines (don't store them)
+                    if not stripped:
+                        continue
+                    
+                    # Detect headers (optimized)
+                    if stripped[0] == '#':
+                        # Count leading # efficiently
+                        level = 0
+                        for char in stripped:
+                            if char == '#':
+                                level += 1
+                            else:
+                                break
                         
-                        stripped = line.strip()
-                        
-                        # Detect headers
-                        if stripped.startswith('#'):
-                            level = len(stripped) - len(stripped.lstrip('#'))
-                            header_text = stripped.lstrip('#').strip()
+                        if level <= 6 and level < len(stripped):  # Valid header
+                            header_text = stripped[level:].strip()
                             lines.append({
                                 'line_num': line_num,
                                 'type': 'header',
                                 'level': level,
-                                'content': header_text,
-                                'raw': line.rstrip()
+                                'content': header_text
                             })
-                        elif stripped.startswith('```'):
-                            # Code block
-                            lang = stripped[3:].strip() or 'text'
-                            lines.append({
-                                'line_num': line_num,
-                                'type': 'code_block',
-                                'level': 0,
-                                'content': lang,
-                                'raw': line.rstrip()
-                            })
-                        elif stripped.startswith('- ') or stripped.startswith('* '):
-                            # List item
-                            lines.append({
-                                'line_num': line_num,
-                                'type': 'list',
-                                'level': 0,
-                                'content': stripped[2:].strip(),
-                                'raw': line.rstrip()
-                            })
-                        elif stripped:
-                            # Regular text
-                            lines.append({
-                                'line_num': line_num,
-                                'type': 'text',
-                                'level': 0,
-                                'content': stripped,
-                                'raw': line.rstrip()
-                            })
-                        else:
-                            # Empty line
-                            lines.append({
-                                'line_num': line_num,
-                                'type': 'empty',
-                                'level': 0,
-                                'content': '',
-                                'raw': ''
-                            })
-                
-                df = pd.DataFrame(lines)
-                return df, encoding
-                
-            except UnicodeDecodeError:
-                continue
-            except Exception as e:
-                if 'codec' in str(e).lower():
-                    continue
-                raise
-        
-        raise ValueError(f"Could not decode {file_path} with supported encodings")
+                            continue
+                    
+                    # Code block marker
+                    if stripped.startswith('```'):
+                        lang = stripped[3:].strip() or 'text'
+                        lines.append({
+                            'line_num': line_num,
+                            'type': 'code_block',
+                            'level': 0,
+                            'content': lang
+                        })
+                        continue
+                    
+                    # List item
+                    if len(stripped) >= 2 and stripped[0] in '-*' and stripped[1] == ' ':
+                        lines.append({
+                            'line_num': line_num,
+                            'type': 'list',
+                            'level': 0,
+                            'content': stripped[2:].strip()
+                        })
+                        continue
+                    
+                    # Regular text
+                    lines.append({
+                        'line_num': line_num,
+                        'type': 'text',
+                        'level': 0,
+                        'content': stripped
+                    })
+            
+            df = pd.DataFrame(lines)
+            return df, detected_encoding
+            
+        except Exception as e:
+            raise ValueError(f"Could not decode {file_path}: {e}")
 
     def _load_fasta(self, file_path: Path, n_rows: Optional[int]) -> pd.DataFrame:
         """Load FASTA file into DataFrame"""
@@ -765,3 +800,16 @@ class DataLoader:
                     'sample_values': []
                 })
         return info
+
+if __name__ == "__main__":
+    # Example usage
+    data_dir = "./Q1_input"
+    resolver = FileResolver(data_dir)
+    loader = DataLoader()
+
+    db_list = "genelist.csv, Q1 features, protocol.md"
+    resolved_files = resolver.resolve(db_list)
+
+    for file_info in resolved_files:
+        df, metadata = loader.load_file(file_info['path'])
+        print(f"Loaded {metadata['file_name']} with {metadata['loaded_rows']} rows")
