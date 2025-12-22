@@ -108,7 +108,8 @@ class DataAnalystAgent:
                         ".csv", ".tsv", ".txt", ".tab", ".xlsx", ".xls", ".json", ".parquet",
                         ".md", ".markdown",  # Markdown files
                         ".fa", ".fasta", ".fna", ".faa", ".ffn", ".frn",  # FASTA files
-                        ".fq", ".fastq"  # FASTQ files (uncompressed)
+                        ".fq", ".fastq",  # FASTQ files (uncompressed)
+                        ".gz"  # Gzip compressed files
                     }:
                         # Treat pure agent artifacts folder as "no data" if it contains only JSON
                         if p.suffix.lower() != ".json":
