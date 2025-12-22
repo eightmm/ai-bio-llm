@@ -11,7 +11,7 @@ def test_dataloader():
     """Test DataLoader with various file formats"""
     
     # Initialize
-    data_dir = Path("../../../problems/problem_1")  # Adjust path as needed
+    data_dir = Path("./Q1_input")  # Adjust path as needed
     resolver = FileResolver(data_dir)
     loader = DataLoader(max_sample_rows=10)  # Load only 10 rows for testing
     
@@ -101,7 +101,7 @@ def test_dataloader():
 
 def test_specific_format(file_pattern: str):
     """Test loading a specific file pattern"""
-    data_dir = Path("../../../problems")
+    data_dir = Path("./Q1_input")
     resolver = FileResolver(data_dir)
     loader = DataLoader(max_sample_rows=10)
     

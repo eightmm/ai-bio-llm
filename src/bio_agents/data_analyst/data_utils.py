@@ -55,6 +55,8 @@ class FileResolver:
             '.csv', '.tsv', '.txt', '.tab', '.xlsx', '.xls',
             # 구조화 데이터
             '.json', '.parquet', '.feather', '.hdf5', '.h5',
+            # 문서 형식
+            '.md', '.markdown',
             # 생물정보학: 시퀀싱 데이터
             '.fastq', '.fq', '.fasta', '.fa', '.fna', '.ffn', '.faa', '.frn',
             '.fastq.gz', '.fq.gz', '.fasta.gz', '.fa.gz',
@@ -275,6 +277,10 @@ class DataLoader:
         '.json': 'json',
         '.parquet': 'parquet',
 
+        # Markdown
+        '.md': 'markdown',
+        '.markdown': 'markdown',
+
         # FASTA
         '.fa': 'fasta',
         '.fasta': 'fasta',
@@ -362,6 +368,8 @@ class DataLoader:
             elif format_type == 'parquet':
                 df = self._load_parquet(file_path, n_rows)
                 encoding = 'binary'
+            elif format_type == 'markdown':
+                df, encoding = self._load_markdown(file_path, n_rows)
             elif format_type == 'fasta':
                 df = self._load_fasta(file_path, n_rows)
                 encoding = 'utf-8'
@@ -503,6 +511,83 @@ class DataLoader:
         else:
             df = pd.read_parquet(file_path)
         return df
+
+    def _load_markdown(self, file_path: Path, n_rows: Optional[int]) -> Tuple[pd.DataFrame, str]:
+        """Load Markdown file as structured text"""
+        for encoding in self.ENCODINGS:
+            try:
+                with open(file_path, 'r', encoding=encoding) as f:
+                    lines = []
+                    current_section = "content"
+                    line_num = 0
+                    
+                    for line in f:
+                        line_num += 1
+                        if n_rows and line_num > n_rows:
+                            break
+                        
+                        stripped = line.strip()
+                        
+                        # Detect headers
+                        if stripped.startswith('#'):
+                            level = len(stripped) - len(stripped.lstrip('#'))
+                            header_text = stripped.lstrip('#').strip()
+                            lines.append({
+                                'line_num': line_num,
+                                'type': 'header',
+                                'level': level,
+                                'content': header_text,
+                                'raw': line.rstrip()
+                            })
+                        elif stripped.startswith('```'):
+                            # Code block
+                            lang = stripped[3:].strip() or 'text'
+                            lines.append({
+                                'line_num': line_num,
+                                'type': 'code_block',
+                                'level': 0,
+                                'content': lang,
+                                'raw': line.rstrip()
+                            })
+                        elif stripped.startswith('- ') or stripped.startswith('* '):
+                            # List item
+                            lines.append({
+                                'line_num': line_num,
+                                'type': 'list',
+                                'level': 0,
+                                'content': stripped[2:].strip(),
+                                'raw': line.rstrip()
+                            })
+                        elif stripped:
+                            # Regular text
+                            lines.append({
+                                'line_num': line_num,
+                                'type': 'text',
+                                'level': 0,
+                                'content': stripped,
+                                'raw': line.rstrip()
+                            })
+                        else:
+                            # Empty line
+                            lines.append({
+                                'line_num': line_num,
+                                'type': 'empty',
+                                'level': 0,
+                                'content': '',
+                                'raw': ''
+                            })
+                
+                df = pd.DataFrame(lines)
+                return df, encoding
+                
+            except UnicodeDecodeError:
+                continue
+            except Exception as e:
+                if 'codec' in str(e).lower():
+                    continue
+                raise
+        
+        raise ValueError(f"Could not decode {file_path} with supported encodings")
 
     def _load_fasta(self, file_path: Path, n_rows: Optional[int]) -> pd.DataFrame:
         """Load FASTA file into DataFrame"""
