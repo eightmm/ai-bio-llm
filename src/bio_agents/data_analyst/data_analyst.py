@@ -73,7 +73,7 @@ class DataAnalystAgent:
         logger.info(f"DataAnalystAgent initialized with data_dir: {Config.DATA_DIR}")
         logger.info(f"Pipeline: Planner={use_planner}, Summarizer={use_summarizer}, Format={output_format}")
 
-    def run_for_problem(self, problem_path: Union[str, Path]) -> Dict[str, Any]:
+    def run_for_problem(self, problem_path: Union[str, Path], problem_dir: Union[str, Path, None] = None) -> Dict[str, Any]:
         """
         Standard entry point for the pipeline.
         Reads a problem JSON file (output from BrainAgent), performs analysis,
@@ -81,6 +81,8 @@ class DataAnalystAgent:
         
         Args:
             problem_path: Path to the problem JSON file.
+            problem_dir: Optional explicit problem directory where data files are located.
+                        If not provided, will be inferred from problem_path.
             
         Returns:
             Dict containing the analysis results.
@@ -109,7 +111,7 @@ class DataAnalystAgent:
                         ".md", ".markdown",  # Markdown files
                         ".fa", ".fasta", ".fna", ".faa", ".ffn", ".frn",  # FASTA files
                         ".fq", ".fastq",  # FASTQ files (uncompressed)
-                        ".gz"  # Gzip compressed files
+                        ".gz"
                     }:
                         # Treat pure agent artifacts folder as "no data" if it contains only JSON
                         if p.suffix.lower() != ".json":
@@ -282,13 +284,14 @@ class DataAnalystAgent:
             resolved_files_ordered = resolved_files
 
         for file_info in resolved_files_ordered:
-            logger.info(f"Analyzing file: {file_info['name']}")
+            logger.info(f"[File {len(file_analyses) + 1}/{len(resolved_files_ordered)}] Starting analysis: {file_info['name']}")
 
             try:
                 analysis = self._analyze_single_file(file_info, brain_output, analysis_plan)
                 file_analyses.append(analysis)
+                logger.info(f"✓ Completed analysis for {file_info['name']}")
             except Exception as e:
-                logger.error(f"Error analyzing {file_info['name']}: {str(e)}")
+                logger.error(f"✗ Error analyzing {file_info['name']}: {type(e).__name__}: {str(e)}")
                 file_analyses.append({
                     'file_path': file_info['path'],
                     'file_name': file_info['name'],
@@ -342,7 +345,13 @@ class DataAnalystAgent:
         file_path = file_info['path']
 
         # Load data
-        df, metadata = self.data_loader.load_file(file_path, sample=True)
+        logger.info(f"Loading data file: {file_info['name']} from {file_path}")
+        try:
+            df, metadata = self.data_loader.load_file(file_path, sample=True)
+            logger.info(f"Successfully loaded {file_info['name']}: {metadata['loaded_rows']} rows, {len(metadata['columns'])} columns (format: {metadata['format']})")
+        except Exception as e:
+            logger.error(f"Failed to load {file_info['name']}: {type(e).__name__}: {e}")
+            raise
 
         # Run LLM analysis with optional plan context
         llm_analysis = self.code_executor.analyze_data(
@@ -420,6 +429,18 @@ class DataAnalystAgent:
             enriched.append(col_info)
 
         return enriched
+
+    def _has_supported_data_files(self, d: Path) -> bool:
+        """Check if directory contains supported data files"""
+        try:
+            for p in d.iterdir():
+                if p.is_file() and p.suffix.lower() in {".csv", ".tsv", ".txt", ".tab", ".xlsx", ".xls", ".json", ".parquet", ".fastq", ".fasta", ".fa", ".bam", ".sam", ".vcf", ".bed", ".pod5"}:
+                    # Treat pure agent artifacts folder as "no data" if it contains only JSON
+                    if p.suffix.lower() != ".json":
+                        return True
+            return False
+        except Exception:
+            return False
 
     def _generate_integration_code(
         self,

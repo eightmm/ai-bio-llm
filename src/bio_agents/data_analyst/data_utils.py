@@ -395,11 +395,11 @@ class DataLoader:
                 'is_sampled': len(df) < total_rows if total_rows else False
             }
 
-            logger.info(f"Loaded {len(df)} rows, {len(df.columns)} columns")
+            logger.info(f"Successfully loaded file: {file_path.name} - {len(df)} rows, {len(df.columns)} columns, {metadata.get('file_size_mb', 0):.2f} MB")
             return df, metadata
 
         except Exception as e:
-            logger.error(f"Error loading file {file_path}: {str(e)}")
+            logger.error(f"Error loading file {file_path}: {type(e).__name__}: {str(e)}")
             raise
 
     def _load_csv(self, file_path: Path, n_rows: Optional[int]) -> Tuple[pd.DataFrame, str]:
@@ -765,17 +765,3 @@ class DataLoader:
                     'sample_values': []
                 })
         return info
-
-
-
-if __name__ == "__main__":
-    # Example usage
-    data_dir = "./Q1_input"
-    resolver = FileResolver(data_dir)
-    loader = DataLoader()
-    
-    db_list = "reads.fastq.gz, Q1.genelist.csv"
-    resolved_files = resolver.resolve(db_list)
-    for file_info in resolved_files:
-        df, metadata = loader.load_file(file_info['path'], sample=True)
-        print(f"Loaded {metadata['loaded_rows']} rows from {file_info['name']}")
