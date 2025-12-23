@@ -1,0 +1,29 @@
+## Reliability Score
+- Score: 72
+- Rationale: The framework demonstrates strong conceptual design with appropriate attention to multimodal integration, missingness handling, and interpretation safeguards. However, several critical gaps undermine executability: (1) the proposal lacks concrete specification of how TERRA-specific signals are actually isolated from bulk telomeric/subtelomeric data, (2) validation strategies for the "repeat-bucket" approach are conceptual rather than operationally defined, (3) sample size requirements for the tiered architecture are never quantified, and (4) the pathway-linking module relies on correlational analyses without addressing multiple testing or confounding rigorously. The framework is scientifically thoughtful but would require substantial additional specification before implementation.
+
+## Critiques / Limitations / Risks (in priority order)
+
+1. **Undefined TERRA-specific signal extraction**: The framework acknowledges TERRA mapping challenges but never specifies how TERRA transcripts are distinguished from other telomeric/subtelomeric transcripts. The "repeat-bucket" approach aggregates all telomeric-repeat-associated signals, conflating TERRA with other telomeric RNAs. This fundamentally undermines the stated objective of predicting from "TERRA modification patterns" specifically.
+
+2. **Missing quantitative thresholds for tier selection**: The document states Tier 1 is for "small n" and Tier 2 for "moderate/large n" but provides no operational definitions. Without concrete sample size thresholds (e.g., n<100 for Tier 1), practitioners cannot reproducibly select the appropriate model complexity, risking either underfitting or overfitting.
+
+3. **Circular risk in modification-type contribution claims**: While the framework correctly identifies circularity concerns, the proposed ablation approach still operates on pre-grouped features (z_m6A, z_Psi, z_m5C). If these embeddings were learned jointly, ablating one may not cleanly isolate that modification's contribution due to learned redundancy or compensation in the latent space.
+
+4. **Pathway-linking interpretability lacks statistical rigor**: Module C proposes correlating pathway scores with ablation effects but does not specify correction for multiple comparisons, control for pathway overlap, or methods to distinguish direct from mediated associations. The phrase "controlling for obvious technical covariates where possible" is insufficiently precise for reproducibility.
+
+5. **Imaging validation is post-hoc rather than integrated**: The framework proposes QC filters and sensitivity analyses for imaging but treats these as downstream checks rather than integrated uncertainty propagation. Imaging-derived features enter the model without explicit uncertainty quantification, potentially propagating detection errors into predictions without appropriate weighting.
+
+6. **Missing-not-at-random (MNAR) handling is incomplete**: While missingness indicators are included as inputs, this approach assumes the model can learn to adjust for MNAR patterns—an assumption that may fail when missingness correlates with unmeasured confounders. The proposed stratified analyses are useful but cannot fully address MNAR bias.
+
+7. **No benchmark or baseline specification**: The framework does not define what constitutes a meaningful baseline (e.g., chronological age alone, single-modality models, or existing aging clocks). Without explicit baselines, it is impossible to evaluate whether the multimodal framework provides added value.
+
+8. **Computational feasibility unaddressed**: Deep ensembles with multimodal Transformers, combined with ablation-based interpretation across multiple modification types and samples, may be computationally prohibitive. No discussion of computational requirements or scalability is provided.
+
+9. **Long-read modification calling mentioned but not operationalized**: The framework mentions "long-read modification calls (when available)" but does not specify how these would be integrated with short-read-derived features, given their fundamentally different error profiles and resolution.
+
+10. **Overstated separation of "model reliance" from biology**: While the framework correctly frames interpretations as model-centric, the visualization outputs (e.g., "modification-type reliance" plots) may still be misinterpreted by end-users as biological importance without explicit cautionary annotations in the output design.
+
+## Final Short Summary to Attach
+
+This framework presents a well-structured conceptual design for multimodal TERRA-based aging/disease prediction with commendable attention to missingness, repeat-mapping ambiguity, and interpretation safeguards. However, critical implementation gaps remain: TERRA-specific signal isolation is undefined, tier selection lacks quantitative criteria, pathway-linking lacks statistical rigor, and computational feasibility is unaddressed. The proposal would benefit from explicit operational definitions, concrete sample size thresholds, and integration of uncertainty throughout the pipeline rather than as post-hoc checks. The framework generates reasonable hypotheses but requires substantial refinement before serving as a reproducible experimental protocol.

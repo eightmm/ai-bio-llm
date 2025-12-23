@@ -31,10 +31,10 @@ class PlannerLLM(BaseAnalyst):
     Generates high-level execution plan based on problem and file list
     """
 
-    def __init__(self):
+    def __init__(self, temperature: float = None):
         """Initialize Planner LLM"""
-        super().__init__(model=Config.MODEL_DATA_PLANNER)
-        
+        super().__init__(model=Config.MODEL_DATA_PLANNER, temperature=temperature)
+
         # Load prompts
         prompt_content = self._read_prompt_file("planner_prompts.md")
         self.prompts = self._split_prompts(prompt_content)

@@ -1,0 +1,226 @@
+## Objective (integrated framework must satisfy all three)
+1. **Predict** cellular aging status and/or disease progression probability from **TERRA-related multi-omics + imaging** data.  
+2. **Quantify and visualize** the **functional contribution** of individual RNA modification types (**m6A, pseudouridine/Ψ, m5C**) to each prediction.  
+3. **Provide mechanistic interpretability** by linking consistently attributed molecular features to **telomere maintenance, DNA damage response, replication stress, RNA processing, chromatin regulation, and senescence pathways** (hypothesis-generating; not causal claims) [1][3][4][25][28][43][46].
+
+---
+
+## Module A: Multimodal Data Integration and Normalization
+
+### 1. Data types and AI tools used (with scientific justification)
+
+**A.1 Data modalities (sample/patient-aligned where possible)**
+- **Transcriptomic**
+  - **Bulk RNA-seq** (stable cohort-scale signal for risk prediction; supports large clinical cohorts) [44][47].
+  - **Single-cell RNA-seq** (captures heterogeneous senescence and disease states) [27][30][43][46].
+- **Epigenetic / RNA modification**
+  - RNA modification maps for **m6A, Ψ, m5C** on **TERRA and telomere-proximal transcripts** (e.g., MeRIP-seq peaks vs miCLIP site-level mapping) [16].
+  - Optional **ChIP-seq** for telomere-associated factors / DNA damage markers to contextualize telomeric chromatin state.
+- **Imaging**
+  - **Telomere DNA FISH**, **TERRA RNA-FISH**, and (when available) **super-resolution (STED/SIM)** telomere morphology/organization metrics.
+
+**A.2 TERRA-aware preprocessing and feature engineering (addresses repeat/multi-mapping)**
+Because TERRA is telomeric-repeat rich, integration explicitly represents mapping ambiguity rather than discarding it:
+- Create **two complementary TERRA feature families**:
+  1) **Repeat-content aggregates** (global telomeric repeat signal; multi-mapping tolerant).  
+  2) **Locus-anchored subtelomeric features** (unique anchor-adjacent signal when present).
+- **Retain multi-mapping reads** and encode **multi-mapping multiplicity** as a covariate; use fractional assignment for repeat-derived aggregates (to avoid systematic undercounting).
+- For modification assays (MeRIP/miCLIP), compute **expression-normalized modification indices** (IP/Input and transcript-abundance–aware) so “more RNA” does not masquerade as “more modification” [16].
+
+**A.3 Modality-specific normalization**
+- **Bulk RNA-seq**: normalize with **TMM or DESeq2 size factors** and transform (log2(count+1) or variance-stabilizing) [44][47]. Include telomere/senescence-relevant gene features (e.g., shelterin and senescence markers) [3][43][46].
+- **scRNA-seq**: integrate/batch-correct using **scVI**, and map across studies using **scArches**; pool to sample-level using attention-weighted aggregation when the label is sample-level [27][30].
+- **RNA modifications**: treat **MeRIP** as peak-level and **miCLIP** as site-level; keep assay-type metadata to avoid mixing resolutions [16]. Maintain separate matrices per modification type (**m6A, Ψ, m5C**) to preserve interpretability downstream.
+- **ChIP-seq (optional)**: summarize peak signal in telomeric/subtelomeric contexts as contextual regulators.
+- **Imaging**:
+  - Classical morphological/colocalization metrics (e.g., telomere foci counts, intensity distributions, TERRA–telomere colocalization).  
+  - Deep embeddings from self-supervised microscopy encoders (e.g., ViT-MAE-style representations) for subtle morphology.
+
+**A.4 Preferred integration tool: probabilistic multimodal latent-variable model**
+- Use a **multimodal VAE** (totalVI-like extension) to fuse modalities into an uncertainty-aware latent posterior \(q(z)\), enabling:
+  - heterogeneous likelihoods (counts vs continuous vs image embeddings),
+  - **missing-modality robustness** via modality dropout and expert-style aggregation,
+  - explicit uncertainty propagation to downstream prediction.  
+- Use a **hierarchical latent structure** to preserve modification identity:
+  - \(z_{\text{shared}}\) (global state), plus \(z_{m6A}, z_{\Psi}, z_{m5C}\) (modification-type factors), supporting explicit downstream contribution quantification [1][4].
+
+### 2. Alternative design choices and why they were not selected
+- **Concatenate features + classical ML**: brittle with heterogeneous distributions, high dimensionality, missing modalities, and repeat-driven ambiguity; tends to require aggressive feature selection and weak interaction modeling.
+- **Late fusion (separate per-modality models + ensemble)**: under-captures cross-modal interactions (e.g., modification-by-expression or modification-by-morphology effects), which are central to telomere regulation [1][4].
+- **Transformer-only fusion over raw modalities** as the primary integrator: powerful but typically data-hungry and less naturally uncertainty-aware for multi-assay cohorts; missing-modality handling is more ad hoc than in probabilistic multimodal VAEs.
+
+### 3. How the module’s outputs feed into the next stage
+Module A outputs passed to Module B:
+- **Joint latent posterior** \(q(z)\) (mean and covariance) per sample (or per cell then pooled) for downstream prediction with uncertainty.
+- **Modification-type latent factors** \(z_{m6A}, z_{\Psi}, z_{m5C}\) to enable explicit modification-type attribution.
+- **Missingness masks + per-modality quality metrics** to reduce confounding from informative missingness and assay noise.
+- Optional denoised/reconstructed modality summaries for stability checks (not treated as ground truth).
+
+---
+
+## Module B: Predictive Model Design
+
+### 1. Data types and AI tools used (with scientific justification)
+
+**B.1 Targets (choose based on available labels)**
+- **Classification**: senescent vs proliferative; disease vs control; or **ordinal staging** of aging/disease progression [43][46][50][53].
+- **Regression**: continuous aging score / biological-age proxy.
+- **Survival/time-to-event**: time-to-progression or overall survival using deep survival heads when longitudinal outcome exists [20][23][37][40].
+
+**B.2 Preferred predictive architecture: latent-token Transformer + grouped Mixture-of-Experts (MoE)**
+- **Inputs as tokens**: \(z_{\text{shared}}, z_{m6A}, z_{\Psi}, z_{m5C}\), plus modality quality/missingness embeddings.
+- **Transformer encoder** models interactions among shared state and modification-type factors (cross-factor nonlinearity).
+- **Grouped MoE prediction head** (experts grouped by modification type) provides:
+  - strong predictive capacity (specialization),
+  - *built-in, explicit* modification-type routing signals (candidate reliance indicators) [15][18].  
+  Important interpretability framing: routing weights reflect **model usage**, not biological causality; they require faithfulness checks in Module C.
+
+**B.3 Uncertainty propagation**
+- Propagate Module A uncertainty by Monte Carlo sampling \(z^{(k)} \sim q(z)\), producing:
+  - mean predicted risk/probability,
+  - predictive uncertainty from variability across samples (useful for calibration and decision support).
+
+**B.4 Training/regularization**
+- Loss functions: cross-entropy / ordinal loss, MAE/MSE, Cox/DeepHit-style survival losses (as appropriate) [20][23][50][53].
+- Regularization:
+  - **modality dropout** consistent with missing-modality reality,
+  - MoE load-balancing to prevent expert collapse [15],
+  - weight decay and early stopping.
+- Splitting: **patient-level** splits to avoid leakage; stratify by batch/age/stage where possible.
+
+### 2. Alternative design choices and why they were not selected
+- **Single-modality predictors** (e.g., RNA-seq-only): miss early regulatory signals encoded in modification maps and telomere/TERRA imaging; retained only as baselines.
+- **Single MLP on concatenated latents/features**: simpler but less structured for explicit modification-type contribution and interaction modeling; weaker handling of conditional routing.
+- **Primary pathway/PPI GNN predictor**: imposes strong priors that may miss TERRA-specific regulatory structure; better used as an optional auxiliary interpretability layer rather than the main predictor [51][54].
+
+### 3. How the module’s outputs feed into the next stage
+Module B outputs passed to Module C:
+- **Predicted aging/disease risk** (probability/score) with **uncertainty**.
+- **MoE gating/routing weights** and Transformer embeddings/attention matrices (candidate modification-type reliance signals).
+- Intermediate representations suitable for visualization (e.g., UMAP over final embeddings).
+
+---
+
+## Module C: Model Interpretation and Evaluation
+
+### 1. Data types and AI tools used (with scientific justification)
+
+**C.1 Contribution quantification (explicitly isolates m6A vs Ψ vs m5C)**
+Use **multiple complementary methods** and require agreement to claim stable “functional contribution”:
+1. **Counterfactual masking (primary faithfulness test)**  
+   - For each sample, recompute prediction after masking each modification-type token:  
+     \(\Delta_{m6A} = \hat{y} - \hat{y}_{\text{mask }m6A}\), similarly \(\Delta_{\Psi}, \Delta_{m5C}\).  
+   - This quantifies prediction dependence on each modification type more directly than routing alone.
+2. **Integrated Gradients (IG)** for differentiable attribution (token-level and/or feature-level) [22].  
+3. **DeepSHAP/SHAP** as a complementary attribution view [19].  
+4. **MoE gating weights** as a compact *model-internal usage* indicator (validated against masking deltas) [15][18].  
+5. **Transformer attention rollout** as supportive interaction-level evidence (not a sole explanation) [41].
+
+**C.2 Required visualizations (explicit deliverables)**
+- **Per-sample stacked contribution plot**: bars showing \(\Delta_{m6A}, \Delta_{\Psi}, \Delta_{m5C}\) (masking-based), optionally overlaid with MoE gating proportions.
+- **TERRA modification attribution heatmaps**: site/peak-level where assay resolution permits (clearly labeling MeRIP peak-level vs miCLIP site-level) [16].
+- **Latent space visualization (e.g., UMAP)** colored by predicted risk, annotated with dominant modification-type contribution.
+- **Mechanistic Sankey/flow diagram**: modification type → top attributed feature groups (TERRA repeat vs subtelomeric anchors vs imaging colocalization) → pathway modules → predicted outcome.
+
+**C.3 Mechanistic interpretability linked to pathways (hypothesis generation)**
+- Map consistently attributed genes/features to pathways using **GSEA/GSVA** [25][28], focusing on telomere maintenance, DNA damage response, chromatin regulation, RNA processing, and senescence signatures [3][4][43][46].  
+- **Circularity control**: if pathway scores are used as engineered inputs, do not present enrichment on the same sets as independent mechanistic discovery; instead label as “model uses pre-specified pathway features,” and where feasible reserve some pathway sets for interpretation-only.
+- Optionally use attribution-weighted network propagation as a pathway/module discovery aid [51][54] (interpretation support, not proof of causality).
+
+**C.4 Evaluation**
+- **Classification**: AUROC/AUPRC, calibration curves/ECE, Brier score [24][32][35].  
+- **Regression**: MAE, \(R^2\), correlation.  
+- **Survival**: C-index, time-dependent AUC, integrated Brier score [37][40].  
+- **Baselines**: late fusion ensemble, linear latent-factor baseline (e.g., MOFA+ + logistic/Cox), and single-modality models [6][27].  
+- **Ablations (required to justify modification-type contributions)**:
+  - remove each modality,
+  - remove each modification type (mask m6A vs Ψ vs m5C),
+  - remove MoE (single head) to test whether MoE improves prediction or only changes interpretability optics.
+- **Robustness**:
+  - missing modality stress tests,
+  - attribution stability checks (perturbation, method agreement),
+  - missingness-stratified performance to detect confounding.
+
+### 2. Alternative design choices and why they were not selected
+- **Attention-only interpretation**: not reliably faithful; used only as secondary evidence [41].
+- **Single explainer method**: IG/SHAP can be baseline- or background-sensitive; requiring agreement improves reliability [19][22].
+- **Correlation-only mechanistic linking**: replaced with attribution-guided ranking plus circularity/missingness controls.
+
+### 3. How the module’s outputs feed into the next stage
+Module C closes the loop by specifying actionable refinements:
+- If gating disagrees with masking deltas/IG/SHAP: adjust MoE grouping/regularization and tokenization.
+- If informative missingness is detected: condition on missingness covariates; re-evaluate within missingness strata.
+- If TERRA repeat vs anchor features are unstable: tighten QC and re-balance feature channels; re-train Module A then re-evaluate.
+
+---
+
+## References
+Only items present in the provided Search Findings are listed here.
+
+[1] METTL3-mediated m6A modification stabilizes TERRA and supports ALT pathway in cancer cells, involving R-loop formation and homologous recombination regulation.  
+[2] Multimodal machine learning architectures and approaches for integrating diverse data modalities (CellWhisperer, multimodal fusion).  
+[3] Telomere length as a biomarker of aging and cellular senescence, reflecting oxidative stress and replication history.  
+[4] Epitranscriptome modifications (m6A, m5C) in DNA damage response and telomere maintenance, with TERRA and R-loops as key regulatory substrates.  
+[5] Multimodal machine learning architectures and approaches for integrating diverse data modalities.  
+[6] Digital telomere measurement by long-read sequencing enables high-resolution analysis of telomere length distributions and age-associated attrition.  
+[8] Multimodal machine learning architectures and approaches for integrating diverse data modalities (ME-VAE).  
+[9] Multimodal machine learning architectures and approaches for integrating diverse data modalities (JAMIE, multi-encoder VAE designs).  
+[11] Multimodal machine learning architectures and approaches for integrating diverse data modalities (multi-encoder VAE designs).  
+[13] MeRIP-seq peak finding tools (MeRIP-PF or similar) referenced in Search Findings.  
+[15] Mixture-of-experts architectures and load balancing in large-scale models.  
+[16] MeRIP-seq / miCLIP-seq characteristics and resolution considerations.  
+[18] Mixture-of-experts architectures and load balancing in large-scale models.  
+[19] Feature attribution methods (SHAP).  
+[20] Deep survival models (DeepHit, CoxPH neural heads) referenced in Search Findings.  
+[22] Feature attribution methods (Integrated Gradients).  
+[23] Deep survival models referenced in Search Findings.  
+[24] Calibration error (ECE) referenced in Search Findings.  
+[25] GSEA/GSVA referenced in Search Findings.  
+[27] scVI / scArches and multi-omics integration references in Search Findings.  
+[28] GSEA/GSVA referenced in Search Findings.  
+[30] scVI and scArches for single-cell RNA-seq integration and transfer learning.  
+[32] Evaluation metrics (AUROC/AUPRC) referenced in Search Findings.  
+[35] Evaluation metrics (AUROC/AUPRC, Brier) referenced in Search Findings.  
+[37] Survival metrics (C-index, time-dependent AUC) referenced in Search Findings.  
+[40] Survival metrics (C-index, time-dependent AUC) referenced in Search Findings.  
+[41] Transformer interpretability / attention visualization references in Search Findings.  
+[43] Cellular senescence markers (p16, p21) referenced in Search Findings.  
+[44] RNA normalization (TMM) referenced in Search Findings.  
+[46] Cellular senescence heterogeneity and markers referenced in Search Findings.  
+[47] RNA normalization (DESeq2 size factors) referenced in Search Findings.  
+[50] Ordinal regression references in Search Findings.  
+[51] Network propagation / GNN-related references in Search Findings.  
+[53] Ordinal regression and monotonic constraint references in Search Findings.  
+[54] Network propagation / GNN-related references in Search Findings.  
+[56] Domain shift / propensity score matching references in Search Findings.  
+[59] Domain adaptation references in Search Findings.
+
+---
+
+## Red Review (Critique + Reliability Score)
+
+## Reliability Score
+- Score: 72
+- Rationale: The framework demonstrates sophisticated architectural thinking and addresses many technical challenges specific to TERRA biology (repetitive sequences, multi-mapping). However, several critical gaps undermine reliability: (1) the pathway interpretability module claims mechanistic linking but provides insufficient safeguards against circular reasoning when pathway scores are used as both inputs and interpretation targets; (2) the MoE gating-to-contribution mapping conflates model routing with biological contribution despite stated caveats; (3) no concrete validation strategy exists for the TERRA-specific preprocessing claims; (4) the framework's complexity may exceed what is feasible given typical TERRA dataset sizes.
+
+## Critiques / Limitations / Risks (in priority order)
+
+1. **Circularity in Pathway Interpretation Remains Unresolved**: Section C(1.3) acknowledges circularity risk but the proposed safeguards (permutation tests, hold-out pathway families) are vague. If telomere/senescence pathway gene sets inform feature engineering in Module A, then enrichment analysis in Module C cannot provide independent mechanistic evidence. The "hold-out pathway families" suggestion lacks operational definition—which pathways, how selected, and how to prevent information leakage through correlated gene sets?
+
+2. **MoE Gating Weights as Contribution Proxies Are Methodologically Problematic**: The framework treats gating weights as "candidate contribution scores" validated by masking deltas. However, MoE routing is optimized for prediction accuracy, not interpretability. Expert collapse, load-balancing regularization, and token interactions can produce gating patterns that do not reflect true feature importance. The masking delta approach (C(1.1)) partially addresses this but assumes token independence—masking one modification type while keeping others intact ignores potential compensatory information flow through the shared latent.
+
+3. **TERRA-Specific Preprocessing Lacks Empirical Grounding**: The multi-mapping handling strategy (fractional assignment, separate repeat-content vs. locus-anchored channels) is theoretically sound but untested. No reference to existing TERRA quantification benchmarks or validation against orthogonal methods (e.g., Northern blots, qPCR with TERRA-specific primers) is provided. The claim that "ambiguity is retained and represented, not ignored" requires demonstration that downstream predictions are robust to alternative mapping strategies.
+
+4. **Sample Size and Statistical Power Concerns Unaddressed**: The framework's complexity (mmVAE + Transformer + MoE + multiple attribution methods) requires substantial training data. TERRA modification datasets with matched multi-omics and clinical outcomes are rare. No power analysis, minimum sample size estimates, or strategies for small-sample regimes (e.g., transfer learning from related datasets) are discussed.
+
+5. **Uncertainty Quantification May Be Miscalibrated**: The MC sampling approach (K samples from q(z)) propagates latent uncertainty but does not account for model uncertainty (epistemic) or potential miscalibration of the VAE posterior itself. The framework assumes q(z) is well-calibrated without proposing calibration checks for the latent space.
+
+6. **Missing Modality Handling Creates Attribution Confounds**: While modality dropout and missingness indicators are included, the attribution methods (masking deltas, IG/SHAP) are not explicitly adapted for missing-modality scenarios. If imaging is systematically missing in severe disease cases, attributions computed on complete-case samples may not generalize.
+
+7. **Reproducibility Barriers**: Key implementation details are underspecified: mmVAE architecture hyperparameters, transformer depth/width, MoE expert capacity, IG baseline selection, and masking strategy (zero-out vs. mean imputation vs. learned baseline). These choices can substantially affect both predictions and attributions.
+
+8. **Evaluation Baselines May Be Insufficient**: The proposed baselines (late fusion, linear latent, single-modality) do not include simpler interpretable models (e.g., elastic net on hand-crafted TERRA features) that could establish whether the complex architecture provides meaningful improvement over feature engineering alone.
+
+## Final Short Summary to Attach
+
+This framework presents a technically ambitious design for TERRA-based aging/disease prediction with commendable attention to repetitive-sequence challenges and multi-modal integration. However, critical weaknesses include: unresolved circularity in pathway interpretation, questionable validity of MoE gating as contribution proxies, absence of empirical validation for TERRA-specific preprocessing, and insufficient consideration of sample size constraints. The masking-delta faithfulness check partially addresses attribution reliability but assumes token independence that may not hold. The framework would benefit from: (1) explicit separation of training features from interpretation targets, (2) validation of TERRA quantification against orthogonal methods, (3) power analysis for realistic dataset sizes, and (4) simpler interpretable baselines to justify architectural complexity. As written, this represents a well-reasoned design document rather than a validated methodology.

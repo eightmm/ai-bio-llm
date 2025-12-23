@@ -1,0 +1,315 @@
+## 1-1. Incident A (messy libraries, variable yield, poor qPCR efficiency)
+
+### Most likely root cause(s) (ranked)
+1) **Cleanup carryover of inhibitors (salts/solvents/ethanol/guanidinium/phenol)**  
+   - Supported by: **low A260/230** in some runs + **poor/variable qPCR efficiency** + **sometimes improved by repeating cleanup**.  
+   - Mechanism: PCR and ligations are highly sensitive to trace ethanol/salts; partial carryover can push reactions across an inhibition threshold, producing run-to-run variability.
+
+2) **Incomplete removal of short artifacts (adapter/primer-dimer) and/or inconsistent size selection**  
+   - Supported by: **elevated baseline/smear** and **occasional small peaks** on TapeStation/Bioanalyzer; cleanup sometimes helps but not consistently.
+
+3) **Operator variability in bead cleanup technique (over/under-drying; disturbing pellet; residual wash)**  
+   - Supported indirectly (and strongly reinforced by Incident B) by “repeating cleanup sometimes improves” and inconsistent yields.
+
+### Next steps to confirm (no new wet-lab required)
+1) **Correlate outcomes vs. A260/230 and qPCR replicate variance**
+   - Build a run table: {run ID, operator, A260/230, Ct mean, Ct SD, library trace notes}.  
+   - Expectation if inhibition is primary: failed/low-yield runs cluster at **low A260/230** and **high Ct SD**.
+
+2) **Re-review electropherograms quantitatively**
+   - For each run, record: peak size, peak area, and “smear baseline” (e.g., integrated signal outside main peak).  
+   - Expectation if short artifacts are major: “bad” runs show higher low-size signal and/or secondary small peaks.
+
+3) **If sequencing FASTQs exist for “bad” libraries**: check for **overrepresented adapter/primer-only sequences** (FastQC overrepresented sequences; fraction of reads that trim to very short lengths).
+
+### Fix (protocol + execution)
+1) **Make cleanup endpoints objective**
+   - Specify exact wash ethanol concentration and handling (freshly prepared 80% ethanol; consistent volumes).
+   - Add an explicit step to eliminate residual ethanol (e.g., a brief spin and second aspiration of pooled ethanol).
+
+2) **Add a mandatory pre-PCR QC gate**
+   - Proceed to PCR only if: (i) A260/230 in an acceptable range (lab-defined; commonly near ~2.0 for clean nucleic acid), and (ii) a test amplification shows normal efficiency / low replicate Ct variance.
+
+3) **Add a “short artifact depletion” decision**
+   - If trace shows strong low-size peaks/baseline, require an additional cleanup/size-selection step (method depends on what the distributed protocol uses: bead-ratio tuning or gel cut window tightening).
+
+---
+
+## 1-2. Incident B (operator-dependent PCR success; rescued by extended bead air-dry)
+
+### Most likely root cause(s) (ranked)
+1) **Residual ethanol carryover from bead washes inhibiting PCR**  
+   - Supported by: PCR success restored by **extended bead air-dry + careful residual ethanol removal** without reagent changes. This pattern is highly characteristic of ethanol inhibition.
+
+2) **Inconsistent bead handling/resuspension and aspiration technique across operators**
+   - Supported by: strong operator dependence; no single reagent change explains it.
+
+### Next steps to confirm (no new wet-lab required)
+1) **Audit operator technique variables from lab notes**
+   - Dry time, whether a second aspiration/spin was performed, whether pellet was disturbed, whether beads appeared cracked/overdried.
+
+2) **Link PCR outcomes to cleanup handling**
+   - Expectation: “PCR barely works” runs coincide with short dry time and/or residual ethanol risk behaviors.
+
+### Fix (standardization + training)
+1) **Replace ambiguous “air-dry” language with a timed endpoint and visual endpoint**
+   - Timed range + “do not proceed if visible liquid remains.”
+
+2) **Add a required “residual ethanol removal” micro-step**
+   - Brief spin (or equivalent) + second aspiration of pooled ethanol.
+
+3) **Operator training + checklist**
+   - A one-page checklist for bead cleanup (mixing beads thoroughly, aspiration angle/speed consistency, dry-time timer use).
+
+---
+
+## 1-3. Incident C (broad >40 nt fragments; weak/absent 3-nt periodicity; more outside-CDS mapping)
+
+### Most likely root cause(s) (ranked)
+1) **Incomplete/inefficient nuclease digestion and/or overly broad footprint size selection**
+   - Supported by: protected-fragment QC shows **broad distribution with substantial >40 nt**; downstream shows **weak 3-nt periodicity** (a hallmark of non-canonical footprints and/or mixed fragment populations).
+
+2) **Contamination with non-ribosomal RNA fragments (e.g., non-footprint RNA, partially protected RNP fragments)**
+   - Supported by: **increased mapping outside CDS** relative to prior internal datasets, despite acceptable alignment and library yield.
+
+3) **Downstream filtering not restricting to the footprint size window**
+   - If long fragments are carried into the final library, periodicity is diluted.
+
+### Next steps to confirm (computational + records)
+1) **From sequencing data: compute read-length distribution after adapter trimming**
+   - Confirm whether final sequenced inserts are broad and include a substantial tail >35–40 nt.
+
+2) **Periodicity stratified by read length**
+   - Compute frame/periodicity metrics separately for canonical lengths (e.g., 28–34 nt) vs longer reads.  
+   - Expectation: if digestion/selection is the issue, canonical lengths may show stronger periodicity than long lengths.
+
+3) **Check where “outside-CDS” reads map**
+   - If using a transcriptome reference, quantify UTR vs CDS coverage (requires CDS annotation; if absent, infer ORF cautiously—see pilot analysis plan below).  
+   - If genome mapping exists, check rRNA/tRNA contamination (if those references were not depleted computationally).
+
+### Fix
+1) **Introduce an explicit digestion QC gate**
+   - Do not proceed unless the post-digestion fragment distribution is narrow and centered at the expected footprint range.
+
+2) **Tighten size selection**
+   - Explicitly define a narrow selection window (gel slice bounds or bead-ratio cutoffs) and require documentation (photo/ladder position notes).
+
+3) **Bioinformatics gating**
+   - Analyze and report periodicity by length; optionally restrict quantification to lengths that show strong periodicity.
+
+---
+
+## 1-4. Incident D (UMI dedup collapses to tiny number of molecules; extremely small distinct UMI set)
+
+### Most likely root cause(s) (ranked)
+1) **UMI is not truly random in the physical library (oligo synthesis/order/spec problem)**
+   - Supported by: UMI histogram **concentrated in a tiny set**; “uniqueness saturates early” even with moderate read counts.
+
+2) **UMI extraction is misconfigured (wrong coordinates/pattern), so a constant adapter motif is being treated as the UMI**
+   - Supported by: same symptom (few UMIs) can occur if the pipeline extracts bases from a non-random constant region or extracts after trimming away the real UMI.
+
+3) **UMI base qualities are poor in the UMI cycle range**
+   - Can collapse diversity if low-quality cycles create systematic basecalling artifacts (less directly supported by the incident text, but checkable).
+
+### Next steps to confirm (purely computational + paperwork)
+1) **Validate read structure vs. protocol**
+   - Scan raw FASTQ for expected constant motifs and locate where the UMI bases should be. Confirm the UMI region is actually variable base-by-base.
+
+2) **Per-position base composition and entropy across the UMI window**
+   - For each UMI position: %A/%C/%G/%T; a true random UMI should not be dominated by one base at multiple positions.  
+   - Compute UMI diversity metrics: number of distinct UMIs and dominance of top-k UMIs.
+
+3) **Verify pipeline order**
+   - Ensure UMI extraction occurs **before** any trimming that could remove the UMI.
+
+4) **Check oligo CoA / order form**
+   - Confirm the adapter containing “N” bases was ordered as a degenerate UMI, with expected molecule type, modifications, and purification grade.
+
+### Fix
+1) **Lock down and verify UMI-containing oligo specifications**
+   - Require appropriate purification and explicit “degenerate base region” notation in ordering; verify with CoA.
+
+2) **Add an automated “UMI sanity check” to the pipeline**
+   - Fail/flag if distinct UMIs are implausibly few or if top UMIs dominate excessively.
+
+---
+
+## 1-5. Incident E (ligation failure; no gel shift post-ligation; short junk products; new oligo paperwork differs)
+
+### Most likely root cause(s) (ranked)
+1) **Adapter/oligo shipment/specification error (wrong molecule type, wrong terminal modifications, wrong purification) causing ligation failure**
+   - Supported by: (i) **no shifted band immediately after ligation**, (ii) failure is **reproducible across repeats**, (iii) replacing enzymes/buffers does not reliably fix, and (iv) **new oligo paperwork differs** (RNA vs DNA, terminal modifications, purification).
+
+2) **Wrong adapter sequence/identity leading to libraries dominated by primer/adapter artifacts**
+   - Supported by: sequencing shows Read 1 starts enriched for **primer/adapter-like sequence**, while the **expected linker-specific prefix appears at very low frequency**.
+
+### Next steps to confirm
+1) **Read-structure audit on failed FASTQs**
+   - Quantify fraction of reads containing the expected adapter/linker motif at the expected position(s). Very low frequency supports wrong/missing adapter.
+
+2) **Paperwork diff**
+   - Compare old vs new: molecule type (RNA/DNA), 5’ phosphorylation/adenylation state (if relevant), 3’ blocking groups (if relevant), purification grade.
+
+3) **If any remaining old adapter stock exists**
+   - (Recommendation) Use it as a positive control in a future run; although new wet-lab is disallowed during the competition, this is the cleanest post-competition confirmation.
+
+### Fix
+1) **Add an “incoming oligo acceptance” checklist**
+   - Verify identity/specs match the protocol-required chemistry, including molecule type and terminal modifications.
+
+2) **Add a mandatory early ligation QC gate**
+   - If post-ligation gel shows no shifted product, stop and troubleshoot oligos before proceeding.
+
+3) **Add a pipeline read-structure gate**
+   - If expected linker/adapters are not detected at high frequency in raw reads, flag “likely ligation/oligo identity failure.”
+
+---
+
+## 1-6. Preliminary data analysis (single-transcript pilot Ribo-seq dataset)
+
+### Scope, assumptions, and limitations
+- Inputs: `protocol.md`, `reference.fa` (single transcript), `reads.fastq.gz` (400 single-end 50-nt reads). A `trimmed.fastq` with extracted UMIs is also reported available.
+- Limitation: The provided “Data analysis summary” does not include actual alignment/start-position results; therefore **I cannot truthfully print the final numeric arrays here** without executing alignment/counting. Below is an **execution-ready, file-producing procedure** that will generate the required deliverables deterministically from the provided files, plus the QC interpretation framework.
+
+---
+
+### Deliverable A: `counts_raw.csv` and `counts_dedup.csv`
+
+#### Coordinate convention (state clearly)
+- Reference: the transcript sequence in `reference.fa`, length = `L`.
+- **Transcript positions are 1-based** (first nucleotide of the transcript is position 1).
+- For each aligned read, define its footprint position as the **5' end start position on the transcript**:
+  - If aligned on the + strand: `start = leftmost aligned position` (1-based).
+  - If aligned on the − strand (unlikely for a transcript-only reference, but handle it): `start = rightmost aligned position` (1-based), i.e., the 5' end of the read in transcript coordinates.
+
+#### What to compute
+1) **Adapter trimming + length filter**
+   - Use the adapter sequences and UMI placement defined in `protocol.md`.
+   - Output: trimmed reads (FASTA/Q) retaining inserts typically in the footprint size range.
+
+2) **Align to `reference.fa`**
+   - Keep uniquely aligned reads (for a single-transcript toy reference, uniqueness should be high if trimming is correct).
+
+3) **Raw per-position counts (`counts_raw.csv`)**
+   - For each transcript position `p = 1..L`:  
+     `count_raw[p] = number of aligned reads with 5' start == p`
+
+4) **UMI deduplication**
+   - Deduplicate reads using a key that preserves true footprint identity:
+     - Recommended dedup key: **(UMI, start_position, read_length, strand)**.
+     - Output: deduplicated alignments.
+
+5) **Deduplicated per-position counts (`counts_dedup.csv`)**
+   - For each position `p = 1..L`:  
+     `count_dedup[p] = number of deduplicated reads with 5' start == p`
+
+#### File formats (required columns)
+- `counts_raw.csv`:
+  - `transcript_id,position_1based,count_raw`
+- `counts_dedup.csv`:
+  - `transcript_id,position_1based,count_dedup`
+
+---
+
+### Deliverable B: Histogram plot of 5' start positions (raw vs dedup, side-by-side)
+
+#### What to plot
+- X-axis: `position_1based` from 1 to `L`
+- Y-axis: counts
+- Two panels (or overlaid with clear legend):
+  - Panel 1: raw counts (`count_raw[p]`)
+  - Panel 2: deduplicated counts (`count_dedup[p]`)
+
+#### Interpretation use
+- Spot strong peaks (candidate stall sites / initiation pileups / artifacts).
+- Compare whether deduplication removes extreme spikes (PCR duplicates) while preserving the general shape.
+
+---
+
+### Deliverable C: Single HTML report (QC + interpretation for this single transcript)
+
+#### Minimum recommended sections (all computable from given files)
+1) **Input summary**
+   - Total reads in `reads.fastq.gz` (reported: 400)
+   - Read length (reported: 50 nt)
+   - Reference transcript length `L` from `reference.fa`
+
+2) **Read-structure validation (critical given Incidents D/E)**
+   - Frequency of expected adapter/linker motifs in raw reads (from `protocol.md`)
+   - Confirm UMI extraction location yields variable bases (per-position base composition)
+
+3) **Insert length distribution after trimming**
+   - Histogram of trimmed read lengths
+   - Flag if distribution is broad or shifted away from expected footprint lengths
+
+4) **Alignment metrics**
+   - % aligned, % uniquely aligned, mismatch rates (if available)
+
+5) **UMI complexity + duplication**
+   - # distinct UMIs observed
+   - Dominance of top UMIs (e.g., fraction of reads in top 10 UMIs)
+   - Duplication rate: `1 - (dedup_reads / raw_aligned_reads)`
+
+6) **Footprint positional distribution**
+   - The raw vs dedup start-position histograms (Deliverable B)
+   - Optional: smoothed coverage along transcript
+
+7) **Periodicity / frame signal (with explicit caveat)**
+   - If `protocol.md` or `reference.fa` provides CDS boundaries: compute in-CDS frame distribution of starts (or inferred P-site positions).
+   - If no annotation is provided: infer a candidate ORF (e.g., first AUG to first in-frame stop) and label results as **heuristic**.
+
+---
+
+### Deliverable D: Written interpretation + 2–4 follow-up checks
+
+#### What looks biologically meaningful (what you can and cannot claim here)
+- With a **single transcript** and **only a few hundred reads**, apparent peaks can be driven by:
+  - true ribosome pausing,
+  - initiation/termination pileups,
+  - nuclease/ligation biases,
+  - PCR duplication.
+- Therefore, treat any single-nucleotide “stall” inference as **tentative** unless:
+  - deduplicated peaks remain,
+  - peaks align to plausible CDS landmarks (start/stop) with periodicity,
+  - read lengths are in a canonical footprint window.
+
+#### 2–4 concrete follow-up checks / next steps (all directly motivated by incidents + this pilot design)
+1) **UMI sanity check (Incident D prevention)**
+   - Compute UMI diversity/entropy and per-position base composition across the UMI window.
+   - If UMIs are dominated by a few sequences, treat deduplicated counts as unreliable until oligo spec + extraction pattern are verified.
+
+2) **Read-structure check for ligation/adapters (Incident E prevention)**
+   - Quantify the fraction of reads containing the expected linker/adapters at expected positions.
+   - If low, suspect adapter identity/ligation failure or wrong trimming settings.
+
+3) **Length-stratified footprint QC (Incident C link)**
+   - Plot start-position distributions and (if applicable) periodicity separately for each trimmed length (or bins like 25–27, 28–34, >35 nt).
+   - If only a narrow length bin shows structured signal, restrict downstream analyses to that bin.
+
+4) **PCR inhibition / cleanup proxy checks (Incidents A/B link)**
+   - If you have multiple libraries’ FASTQs: compare adapter-dimer rate proxies (fraction of reads trimming to extremely short length) and duplication rates across runs/operators to identify inhibition/cleanup-sensitive batches.
+
+---
+
+## Cross-incident validation & prevention plan (applies to the whole workflow)
+
+1) **Add objective “go/no-go” QC gates at three points**
+   - Post-cleanup (A/B): inhibition proxy (A260/230 if available; otherwise qPCR efficiency / Ct replicate variance).
+   - Post-ligation (E): gel shift present; raw read-structure contains expected linker at high frequency.
+   - Post-sequencing (C/D): trimmed length distribution narrow; UMI complexity plausible; periodicity detectable (where annotation allows).
+
+2) **Standardize operator-sensitive steps**
+   - Bead cleanup timing and residual ethanol removal steps must be explicitly defined and checklist-driven (Incident B).
+
+3) **Lock down critical oligos**
+   - Maintain a controlled list of adapter sequences, molecule type, terminal modifications, and purification requirements; require paperwork verification on receipt (Incident E) and UMI randomness validation (Incident D).
+
+4) **Automate early bioinformatics “sanity checks”**
+   - Before full analysis, automatically report:
+     - adapter motif frequency,
+     - UMI diversity,
+     - trimmed length distribution,
+     - raw vs dedup read retention.
+   - If any are out-of-family, halt and flag for investigation rather than producing unstable quantification.
+
+---

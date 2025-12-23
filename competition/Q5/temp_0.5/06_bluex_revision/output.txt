@@ -1,0 +1,233 @@
+(A) Quantification of Exhaustion and Aging-Like Programs
+-------------------------------------------------------
+
+### A1. Available inputs and what can (and cannot) be quantified from them
+The provided materials (as described) consist of (i) a metadata table and (ii) six differential-expression (DE) summary tables spanning **days 5, 7, 14, 21, 35, 60**, each containing gene-level statistics (`log2FoldChange`, `padj`) and **timepoint-level mean expression** (`meanTPM_…`). Because **per-sample expression values are not available**, all scores below are necessarily **timepoint-level** (no replicate-level uncertainty bands can be plotted).
+
+**Primary quantifiable object from these files:** a **gene × timepoint meanTPM matrix** reconstructed by merging all `meanTPM_*` columns across the six DEG tables by gene ID.
+
+---
+
+### A2. Signature definitions (explicit gene sets) and validation requirements
+To satisfy the requirement that exhaustion and aging-like programs be “explicitly grounded in RNA-seq–based evidence,” the signatures are defined in a **two-stage** way:
+
+#### A2.1 Exhaustion signature (data-derived; validated against canonical exhaustion markers)
+**Data-derived definition**
+- **Exhaustion-UP set**: genes that show **consistent induction** during progression (operationally: significant positive change in mid/late contrasts), e.g.
+  - `padj < 0.05` and `log2FoldChange > 1` in **day21 vs day14** and/or **day35 vs day14**, and
+  - no direction flip in later comparisons (trend-consistency across available contrasts).
+- **Exhaustion-DOWN set**: analogously, genes with `padj < 0.05` and `log2FoldChange < -1` with trend consistency.
+
+**Required validation report (must be produced from the same DEG tables)**
+- Report overlap counts and enrichment statistics (e.g., Fisher’s exact test) between Exhaustion-UP and a **canonical exhaustion marker panel** (inhibitory receptors / TFs such as *PDCD1, LAG3, HAVCR2, TIGIT, TOX, NR4A1/2/3, BATF, IRF4, ENTPD1*).
+- If enrichment is weak, tighten trend criteria (e.g., monotone rise across reconstructed meanTPM timecourse).
+
+#### A2.2 Aging-like signature (data-derived; validated against aging/senescence resources)
+**Data-derived definition**
+- **Aging-UP set**: late-emerging stress/aging-like genes:
+  - `padj < 0.05` and `log2FoldChange > 1` in **day35 vs day14** and/or **day60 vs day14**, with stronger induction at day35/day60 than at day21 where possible.
+- **Aging-DOWN set**: `padj < 0.05` and `log2FoldChange < -1` in late contrasts.
+
+**Required validation report**
+- Enrichment/overlap of Aging-UP and Aging-DOWN against:
+  - **GenAge** (HAGR) gene list
+  - **MSigDB aging/senescence gene sets** (as provided/selected for the analysis)
+- Explicitly report: gene-set size, overlap size, and enrichment p-values (or GSEA NES and FDR if using a ranked list).
+
+#### A2.3 Separating “aging-like” from “death” (to avoid conflation)
+Because aging-like stress programs and terminal apoptosis can co-occur, compute a third score:
+
+- **Death/Apoptosis program**: MSigDB Hallmark Apoptosis (and, if used, other stress/death sets), quantified identically to the scores below.
+
+This anchors the axis as **Exhaustion → Aging-like → Death** rather than mixing aging-like and apoptosis into one score.
+
+---
+
+### A3. Score computation (from reconstructed meanTPM matrix)
+Let the reconstructed expression be:
+- \( X_{g,t} = \log_2(\mathrm{TPM}_{g,t}+1) \)
+
+Standardize per gene across timepoints to avoid dominance by high-abundance genes:
+- \( Z_{g,t} = \frac{X_{g,t} - \mu_g}{\sigma_g} \)
+
+For each timepoint \(t\):
+- **ExhaustionScore(t)** = mean\((Z_{g,t} \;|\; g\in \text{Exhaustion-UP})\) − mean\((Z_{g,t} \;|\; g\in \text{Exhaustion-DOWN})\)
+- **AgingScore(t)** = mean\((Z_{g,t} \;|\; g\in \text{Aging-UP})\) − mean\((Z_{g,t} \;|\; g\in \text{Aging-DOWN})\)
+- **DeathScore(t)** = mean\((Z_{g,t} \;|\; g\in \text{Apoptosis gene set})\)
+
+**Sensitivity analysis requirement (addresses threshold arbitrariness):**
+Recompute signatures and scores under at least two alternate cutoffs (e.g., `|log2FC| > 0.5` and `> 1.5`; `padj < 0.1` and `< 0.01`) and confirm that the qualitative time ordering of scores is stable.
+
+---
+
+### A4. Visualization and time-course description (deliverables)
+**Required plots**
+1. Line plot over days {5, 7, 14, 21, 35, 60} of:
+   - ExhaustionScore(t)
+   - AgingScore(t)
+   - DeathScore(t)
+2. Optional but recommended: a heatmap of the top contributing genes (by absolute correlation with each score) across time.
+
+**Required quantitative description (must be reported from the computed scores)**
+- Identify when ExhaustionScore first rises materially above early baseline (days 5–7).
+- Identify whether AgingScore shows delayed onset relative to ExhaustionScore.
+- Identify whether DeathScore remains low until later timepoints and then rises, consistent with terminal loss of viability.
+
+*Note:* Without per-sample data, uncertainty bands cannot be computed; interpretation should therefore avoid claims about variability and instead focus on **timepoint-level program ordering**.
+
+---
+
+(B) Identification of the Critical Transition Window
+---------------------------------------------------
+
+### B1. Operational definition (non-circular)
+A “critical transition window” is defined as the **shortest adjacent time interval** (among sampled timepoints) that simultaneously satisfies:
+
+1. **Aging-like acceleration:** AgingScore shows its largest positive step change (or slope increase) across adjacent sampled days.
+2. **Exhaustion reconfiguration:** ExhaustionScore shows either (i) a plateau (reduced slope) or (ii) a marked further increase **with a change in contributing genes** (e.g., shift from activation-associated genes to terminal dysfunction genes), assessed by changes in top correlates.
+3. **Death program initiation:** DeathScore begins a sustained increase after being relatively low earlier (initiation rather than maximum).
+
+This definition avoids selecting a window based on file structure (e.g., “day14 baseline”) and instead uses **concordant, multi-axis change**.
+
+---
+
+### B2. Empirical detection procedure (must be executed on the computed scores)
+Given only six timepoints, use simple, transparent change metrics:
+
+1. **Adjacent step-change screen**
+   - Compute \(\Delta S(t_i\to t_{i+1})\) for each score and each adjacent interval.
+   - Candidate transition window(s) are those where AgingScore has its largest \(\Delta\), and DeathScore switches from near-flat to increasing.
+
+2. **Piecewise (one-breakpoint) regression as confirmation**
+   - For AgingScore and DeathScore separately, fit a one-breakpoint model across ordered days.
+   - Require the inferred breakpoint(s) to fall in the same adjacent interval as the step-change screen.
+
+3. **Gene-level coherence check (state-transition vs gradual drift)**
+   - For the candidate interval, compute how many Aging-UP genes become significantly induced (from DE tables) *as a coordinated block* (e.g., a high fraction of Aging-UP crossing `padj < 0.05` in that interval’s relevant contrast).
+   - A transition is supported if many genes change together rather than a few genes drifting.
+
+**Deliverable:** a single stated transition window (e.g., “day21→day35”) **only if supported by the above computed evidence**, plus a short paragraph describing the concordant changes in the three scores.
+
+---
+
+### B3. Resolution and limitation
+Because sampling is sparse, the “window” is necessarily coarse and may represent an unobserved change occurring between measured days. Conclusions must be framed as: “the transition occurs between sampled timepoints \(t_i\) and \(t_{i+1}\).”
+
+---
+
+(C) Proposal of Rejuvenation Target Genes
+----------------------------------------
+
+### C1. Target selection framework (RNA-seq–anchored; executed within the transition window)
+Candidate rejuvenation targets are defined as genes that, **in the empirically identified transition window**, satisfy:
+
+1. **Significant change with directionality**
+   - `padj < 0.05` in the contrast that spans (or best approximates) the transition window, with a clear direction of change in reconstructed meanTPM across time.
+
+2. **Program linkage by correlation**
+   - Correlation across timepoints between gene expression and scores:
+     - Inhibition targets: positive correlation with ExhaustionScore and/or AgingScore and/or DeathScore.
+     - Activation targets: negative correlation with those scores (or positive correlation with a “fitness” program if defined).
+
+3. **Opposing-regulation logic**
+   - Intervention direction must be justified as moving expression **opposite** to the exhaustion/aging-like program (e.g., suppressing genes that rise with AgingScore; restoring genes that fall as AgingScore rises).
+
+4. **Network/pathway context supported by gene-set behavior**
+   - Each target must be placed in a pathway/module that is demonstrably changing in the RNA-seq data (e.g., checkpoint module, stress response module, senescence/cell-cycle arrest module, apoptosis module, mitochondrial fitness module), supported by gene-set scoring/enrichment.
+
+**Deliverable:** a ranked table of targets (≥5) with: DE direction, score correlations, and module context.
+
+---
+
+### C2. Candidate target modules and gene examples (to be *retained only if supported by the dataset’s DE and correlation outputs*)
+Because the problem asks for gene-level intervention targets, below are **module-centered candidate genes** that are biologically plausible along the exhaustion–aging–death axis. **However, they must not be reported as “supported” unless the RNA-seq tables show the required DE direction and correlations defined in C1.** For each gene, the intervention direction is contingent on observing the stated pattern.
+
+#### Module 1: Exhaustion-maintenance transcriptional regulators (inhibit if induced with ExhaustionScore)
+- **TOX** — inhibition if TOX is significantly upregulated in/after the transition window and positively correlates with ExhaustionScore.
+- **NR4A1 / NR4A2 / NR4A3** — inhibition if induced with chronic progression and positively correlates with ExhaustionScore/AgingScore.
+- **BATF / IRF4** — inhibition if they show sustained induction aligned with dysfunctional program scores.
+
+**RNA-seq evidence to report per gene**
+- MeanTPM trajectory across all days (log2(TPM+1)).
+- DE statistics (`log2FoldChange`, `padj`) for the contrast(s) spanning the transition.
+- Correlation (Pearson/Spearman) with ExhaustionScore and AgingScore across the six timepoints.
+
+#### Module 2: Immunoregulatory surface/checkpoint & suppressive metabolism (inhibit if induced in transition and aligned with dysfunction)
+- **PDCD1, LAG3, HAVCR2, TIGIT** — inhibition if they rise in transition and track ExhaustionScore.
+- **ENTPD1 (CD39)** — inhibition if it rises in transition and aligns with terminal dysfunction and/or AgingScore.
+
+**Pathway-level context to report**
+- Enrichment of Exhaustion-UP genes for negative regulation / inhibitory receptor modules.
+- Whether checkpoint module induction precedes aging-like module induction (temporal ordering).
+
+#### Module 3: Senescence / cell-cycle arrest mediators (inhibit if induced with AgingScore and precede DeathScore rise)
+- **CDKN2A (p16)** and/or **CDKN1A (p21)** — inhibition if they are late-induced, positively correlate with AgingScore, and their rise precedes or coincides with DeathScore initiation.
+- **GADD45 family (if present as Aging-UP)** — inhibition if they are induced within aging-like stress escalation.
+
+**Aging-like specificity check**
+- Demonstrate stronger association with AgingScore than with ExhaustionScore (e.g., higher correlation with AgingScore; induction later than canonical exhaustion markers).
+
+#### Module 4: Stress-activated signaling nodes (inhibit if their pathway signature rises with AgingScore)
+- **MAPK14 (p38α)** — inhibition **only if** MAPK14 itself is induced *or* a p38/stress-response gene-set score rises sharply in the transition window and aligns with AgingScore.
+
+**RNA-seq support requirement**
+- If MAPK14 is not DE, report pathway-score evidence rather than claiming gene-level induction.
+
+#### Module 5: “Rejuvenation”/fitness preservation factors (activate if they decline as aging/death rise)
+- **TCF7 (TCF-1)** — activation/preservation if downregulated during transition and negatively correlates with ExhaustionScore/AgingScore.
+- **PPARGC1A (PGC-1α)** — activation if it declines as AgingScore rises and mitochondrial/OXPHOS-supporting gene sets concurrently decline.
+
+**Opposing-regulation evidence to report**
+- Negative correlation with AgingScore/DeathScore.
+- Positive correlation with a defined “fitness” score (optional): e.g., memory/IL7R/LEF1 module if constructed from data-derived DOWN sets.
+
+---
+
+### C3. Reporting format for each finalized target (must be filled with dataset-derived values)
+For each target gene retained after applying C1:
+
+1. **Target gene:** SYMBOL  
+2. **Intervention direction:** inhibition or activation  
+3. **RNA-seq evidence (from provided tables):**
+   - Expression trend: (e.g., increases from day21→day35; decreases from day14→day35) using reconstructed meanTPM.
+   - DE support: `log2FoldChange`, `padj` in the contrast(s) spanning the transition.
+   - Score alignment: correlation with ExhaustionScore, AgingScore, DeathScore.
+4. **Module/pathway context (from enrichment or gene-set scoring):**
+   - Which changing module the gene belongs to (exhaustion-maintenance, senescence, stress, apoptosis, fitness).
+5. **Mechanistic “rejuvenation shift” expectation (within scope of bulk RNA-seq):**
+   - Inhibition targets: predicted to reduce ExhaustionScore and/or AgingScore in the transition window and delay/attenuate DeathScore initiation.
+   - Activation targets: predicted to restore fitness-associated expression and indirectly reduce AgingScore/DeathScore escalation.
+
+---
+
+### C4. Bulk RNA-seq mixture limitation (addressed with an internal control)
+Bulk time-course changes can reflect shifting proportions of T cell states rather than within-cell reprogramming. Within the constraints of the provided data, address this by:
+
+- Computing additional **state-marker scores** (using small marker panels) for:
+  - effector/cytotoxic program,
+  - memory-like program,
+  - proliferation program,
+and checking whether the transition window corresponds to a coordinated drop in fitness/proliferation markers alongside rising aging/death programs.
+
+Interpret targets as **state-associated intervention points** unless there is evidence of within-program remodeling (e.g., simultaneous induction of exhaustion and senescence modules without a proportional loss of T cell identity markers).
+
+---
+
+(D) Optional (Bonus): Therapeutic Mapping
+----------------------------------------
+
+### D1. Drug–target mapping procedure (if the drug–target table is provided)
+1. Harmonize target identifiers (HGNC symbols) between the RNA-seq gene list and the drug–target dataset.
+2. For each finalized target (from C3), retrieve compounds with matching directionality:
+   - inhibition targets → inhibitors/antagonists/negative modulators
+   - activation targets → agonists/activators (or indirect activators explicitly labeled as such in the table)
+3. Filter for feasibility:
+   - specificity (avoid highly promiscuous compounds if alternatives exist),
+   - modality constraints (small molecule vs biologic),
+   - immune-cell applicability (not asserting efficacy—only feasibility based on targetability).
+
+### D2. Reporting format
+For each target with mapped compounds:
+- target gene, compound name(s), mechanism label in the provided table, direction match, and a one-sentence feasibility caveat (e.g., pleiotropy, pathway-wide effects, or limited specificity).
+
+*If the drug–target dataset is not present in the provided materials for this run, therapeutic mapping cannot be enumerated without adding unsupported claims; in that case, only D1 can be reported as the executable mapping plan.*

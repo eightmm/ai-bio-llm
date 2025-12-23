@@ -1,0 +1,11 @@
+## Reliability Score
+- Score: 52
+- Rationale: The report provides a well-structured methodological framework with reasonable conceptual grounding, but critically fails to deliver actual results. All gene-level claims are stated as "expected evidence to extract" rather than computed findings. The transition window (day 14-35) is proposed without presenting the statistical tests or score trajectories that would justify it. The answer reads as a detailed analysis plan rather than a completed analysis, which fundamentally undermines its utility for answering the scientific question.
+
+## Critiques / Limitations / Risks (in priority order)
+
+1. **No actual computed results presented**: The report repeatedly states what "should be" or "is expected to" be found (e.g., "Expected RNA-seq evidence to extract" for each target gene) but never presents actual log2FC values, p-values, or computed program scores. This is a critical gap—the task explicitly requires "RNA-seq–based evidence" for proposed targets, not hypothetical evidence patterns.
+
+2. **Transition window justification is circular/unsupported**: The claim that day 14-35 represents a critical transition is asserted but not demonstrated. The report describes statistical approaches (piecewise regression, breakpoint analysis) that "should" be performed but does not show results. Without actual score trajectories or change-point statistics, the transition window selection appears arbitrary.
+
+3. **Signature derivation lacks validation**: The TexSig and AgingSig construction procedures are described, but no overlap

@@ -24,13 +24,15 @@ class SearchAgent:
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
         model: Optional[str] = None,
+        temperature: Optional[float] = None,
     ):
         self.api_key = api_key or Config.API_KEY
         if not self.api_key:
             raise ValueError("api_key must be provided or set in OPENROUTER_API_KEY environment variable.")
-            
+
         self.base_url = base_url or Config.BASE_URL
         self.model = model or Config.MODEL_SEARCH
+        self.temperature = temperature if temperature is not None else Config.DEFAULT_TEMPERATURE
 
         # Initialize Client
         self.client = OpenAI(
@@ -98,6 +100,7 @@ class SearchAgent:
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt},
                     ],
+                    temperature=self.temperature,
                 )
 
                 print("[LLM] Response received", flush=True)

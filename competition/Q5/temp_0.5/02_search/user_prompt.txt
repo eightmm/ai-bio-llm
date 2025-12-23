@@ -1,0 +1,99 @@
+# Problem Context
+You are given structured information describing a scientific research problem.
+
+## Problem Description
+Problem 5. [Rejuvenation Target Discovery Along the T Cell Exhaustion–Aging–Death Axis]
+
+
+Background
+In the tumor microenvironment, T cells are subjected to chronic and repeated antigen stimulation over time, leading to the acquisition of a T cell exhaustion program characterized by reduced effector function and altered transcriptional states. As this process progresses, a subset of exhausted T cells is observed to exhibit stress-induced, aging-like transcriptional programs, which may ultimately culminate in cellular senescence and cell death.
+In this problem, T cell exhaustion is assumed to represent a progressive trajectory toward aging-like dysfunction and terminal loss of cellular viability. Reversing this trajectory—particularly at critical transition points—can be conceptualized as a form of immune rejuvenation.
+You are provided with time-course bulk RNA-seq data of T cells following tumor challenge. Using this dataset, your task is to define and analyze the exhaustion–aging–death axis and propose gene-level intervention targets capable of reversing this progression.
+The following publicly available aging-related resources may be used, among others:
+•	GenAge (Human Aging Genomic Resources, HAGR)
+https://genomics.senescence.info/genes/
+•	MSigDB Aging / Senescence Gene Sets
+https://www.gsea-msigdb.org
+
+Task Overview
+Using the provided time-course T cell bulk RNA-seq data, identify candidate rejuvenation targets that could reverse T cell exhaustion and aging-like programs before terminal cell death.
+Your analysis should be explicitly grounded in RNA-seq–based evidence and focused on the intersection between exhaustion and aging-like transcriptional states.
+(A) Quantification of Exhaustion and Aging-Like Programs
+•	Define a T cell exhaustion score and an aging-like score using transcriptional signatures derived from the time-course data.
+•	Visualize and describe how these scores change over time following tumor challenge.
+(B) Identification of the Critical Transition Window
+•	Identify and define a key transition window along the
+“Exhaustion → Aging-Like → Death” axis.
+•	Justify why this time interval represents a biologically meaningful state transition, rather than a gradual continuum.
+(C) Proposal of Rejuvenation Target Genes
+•	Propose candidate target genes capable of reversing or disrupting the exhaustion–aging trajectory during the identified transition window.
+•	For each proposed target:
+o	Specify the direction of intervention: inhibition or activation
+o	Provide RNA-seq–based evidence, including:
+	Direction of expression change over time
+	Network or pathway-level context
+	Opposing regulation relative to exhaustion or aging-like signatures
+Your reasoning should explicitly connect gene modulation to the expected rejuvenation-like transcriptional shift.
+(D) Optional (Bonus): Therapeutic Mapping
+•	Using the provided drug–target dataset, identify:
+o	Existing drugs or compounds that could modulate the proposed targets
+•	Briefly discuss feasibility, specificity, or limitations of these interventions
+
+
+
+
+
+## Core Objective
+Given time-course bulk RNA-seq of tumor-challenged T cells, define an RNA-seq–grounded “Exhaustion → Aging-like → Death” transcriptional axis, quantify its progression over time, pinpoint a discrete transition window, and nominate gene-level intervention targets (with directionality and mechanistic evidence) that could reverse or interrupt the exhaustion/aging-like program prior to terminal loss of viability; optionally map targets to existing compounds using a provided drug–target dataset.
+
+# Task Details
+
+
+## Suggested Direction
+
+
+---
+
+# Task
+Using the information above, generate a structured scientific report that addresses the stated problem by synthesizing relevant prior research.
+
+
+[List of Sub-Problems to Address]
+- [A_Quantify_Programs] Quantify Exhaustion and Aging-Like Programs from Time-Course RNA-seq
+  Description: Using the provided time-course bulk RNA-seq of T cells post tumor challenge, define (i) a T cell exhaustion score and (ii) an aging-like score that are explicitly derived/validated from the dataset. Compute per-sample scores and visualize their trajectories over time. Provide a clear narrative describing score dynamics (onset, slope, plateau), and relate them back to transcriptional evidence (key genes/pathways driving each score).
+  Approach: 1) Preprocess & normalize: perform QC (library size, outliers), normalize counts (DESeq2 size factors or edgeR TMM; for linear modeling consider limma-voom). Account for batch/replicate structure in the design matrix.
+2) Build exhaustion signature grounded in data: identify genes showing monotonic increase/decrease along time or significantly changing vs baseline using time-course DE tools (ImpulseDE2, maSigPro, DESeq2 likelihood ratio test). Cross-check that canonical exhaustion markers/pathways are enriched (e.g., inhibitory receptors, TOX/NR4A axis, diminished cytotoxicity modules) without hard-coding them as the only definition.
+3) Build aging-like signature grounded in data: extract a gene module that turns on later and resembles stress/senescence/aging programs by enrichment against aging resources (e.g., MSigDB aging/senescence gene sets; GenAge gene enrichment) and stress/death-related Hallmarks (p53, apoptosis, inflammatory/SASP-like cytokines if present). Ensure the signature is anchored in observed time-course patterns.
+4) Scoring method: compute per-sample signature scores using GSVA/ssGSEA (recommended), or z-scored average of signature genes with sign-corrected direction (up vs down components). Consider separating “up” and “down” components for interpretability.
+5) Visualization & statistics: plot scores vs time (line plots with confidence intervals; LOESS fits), test time trends (mixed models/ANOVA with time as factor; or spline regression), and report effect sizes between adjacent timepoints.
+6) Provide gene-level drivers: show top contributing genes per score (loading/weights if using PCA/PLS; or highest correlation with score) and pathway enrichment (fgsea).
+
+- [B_Transition_Window] Identify a Critical Transition Window on the Exhaustion–Aging-Like–Death Axis
+  Description: Identify a discrete, biologically meaningful transition window along the inferred “Exhaustion → Aging-like → Death” progression rather than treating changes as purely gradual. Define the window boundaries (timepoints/interval), quantify the evidence for a state shift, and provide RNA-seq–based justification that the window marks a change in transcriptional regime (e.g., module switching, inflection point, emergence of death/stress programs).
+  Approach: 1) Change-point/segmentation on scores: apply segmented regression or formal change-point detection (e.g., Bayesian change point, Pruned Exact Linear Time, or the 'ruptures' framework conceptually) to exhaustion and aging-like score trajectories to detect inflection points.
+2) Multivariate state shift: perform PCA/UMAP on normalized expression and test whether samples cluster by early/mid/late time; quantify separation (silhouette score) and identify the time interval where cluster membership flips.
+3) Time-course module dynamics: run WGCNA (or similar co-expression module detection) and track module eigengenes over time. Identify the time where an “exhaustion module” stops increasing and an “aging/death/stress module” sharply rises (module crossing).
+4) Death/proximal viability signatures: quantify apoptosis/necrosis/ER stress/mitochondrial dysfunction signatures (e.g., MSigDB Hallmark Apoptosis, p53 pathway, unfolded protein response). Use these to support the ‘toward death’ interpretation.
+5) Statistical justification: compare adjacent intervals with differential expression contrasts (t_k vs t_{k-1}) and report whether one interval shows an unusually large transcriptional jump (number of DE genes, effect-size distribution shift), consistent with a transition window.
+6) Deliverable: define window as [t_i, t_j] and provide 2–3 orthogonal lines of evidence (score change-point + module switch + DE burst / emergence of death signatures).
+
+- [C_Rejuvenation_Targets] Nominate and Evidence-Back Gene-Level Rejuvenation Targets in the Transition Window
+  Description: Propose candidate rejuvenation intervention genes that could reverse or disrupt the exhaustion-to-aging-like trajectory specifically during the identified transition window. For each gene: specify intervention direction (inhibit vs activate), provide RNA-seq evidence (direction and timing of expression change), place the gene in pathway/network context, and explicitly argue how modulating it would oppose the exhaustion and/or aging-like signatures (i.e., expected rejuvenation-like shift).
+  Approach: 1) Candidate selection focused on the transition window: prioritize genes that (a) change sharply within the window (time-course DE focused on window boundaries), (b) correlate strongly with exhaustion/aging-like scores, and/or (c) sit in modules that switch on/off during the transition.
+2) Regulatory inference: infer upstream regulators and transcription factor activity using DoRothEA/VIPER (TF activity), PROGENy (pathway activity), or comparable approaches on bulk RNA-seq to prioritize controllable nodes (TFs, signaling adaptors, chromatin regulators).
+3) Network context: build a co-expression network (WGCNA) and/or map candidates onto PPI networks (conceptually) to compute centrality within exhaustion/aging modules; highlight whether the gene is a hub/driver.
+4) “Opposing regulation” test: define a rejuvenation direction as negative association with exhaustion+aging scores and positive association with effector/memory-like programs (e.g., cytotoxicity, IL7/TCF7-like programs, mitochondrial fitness). Quantify with correlations/linear models and perform enrichment to show that candidate modulation would downshift exhaustion/aging-like gene sets.
+5) Intervention direction logic: 
+   - If gene increases with worsening exhaustion/aging-like score and is a putative driver/hub → propose inhibition.
+   - If gene decreases and is linked to stem-like/memory/repair metabolism → propose activation.
+6) Evidence package per target: mini-dossier including (i) expression trajectory plot, (ii) window-specific fold change, (iii) module membership and module-time behavior, (iv) enriched pathways connected to that module, (v) predicted downstream signature shift if modulated (e.g., via gene set directionality analysis).
+7) Output: rank targets with a transparent scoring rubric (window-specific effect size, driver likelihood, druggability proxy if available, and predicted anti-exhaustion/anti-aging-like impact).
+
+- [D_Therapeutic_Mapping_Bonus] Map Proposed Targets to Existing Drugs/Compounds (Optional Bonus)
+  Description: Using the provided drug–target dataset, identify drugs/compounds that can modulate the proposed rejuvenation targets in the correct direction (inhibitor vs activator/agonist). Briefly assess feasibility and limitations (specificity, immune effects, clinical status if available in the dataset, and whether directionality matches the intended intervention).
+  Approach: 1) Harmonize identifiers: standardize target gene symbols/IDs between proposed targets and drug–target dataset.
+2) Directionality matching: filter drug–target pairs by mechanism of action (inhibitor/antagonist vs agonist/activator); flag ambiguous MoA.
+3) Prioritize: rank compounds by (a) match to intended direction, (b) target specificity (polypharmacology burden), and (c) practicality (e.g., availability/clinical precedence if annotated).
+4) Risk/limitations: note likely on-target immune suppression/activation risks, potential off-target toxicity, and whether bulk RNA-seq–derived targets might reflect cell-composition changes (caveat).
+5) Deliverable: a table linking target → compounds → MoA → notes on feasibility/limitations.
+

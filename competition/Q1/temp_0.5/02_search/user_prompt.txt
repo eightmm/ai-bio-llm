@@ -1,0 +1,198 @@
+# Problem Context
+You are given structured information describing a scientific research problem.
+
+## Problem Description
+Problem 1. [Troubleshooting an Ribosome Profiling Experiment]
+You are given a ribosome profiling (Ribo-seq) wet-lab protocol and a set of incident reports from teams who attempted the workflow. Your job is to diagnose the root causes, propose fixes, and design a validation and prevention plan.
+
+Provided artifact
+
+-	protocol.md: The protocol “as distributed” to teams.
+-	reference.fa: a single transcript reference sequence (toy_gene).
+-	reads.fastq.gz: 50-nt single-end reads (a few hundred total).
+
+Constraints
+
+-	Assume no ability to run new wet-lab experiments during the competition.
+-	You may propose additional experiments/QC as recommendations, but your core answers must be supported by the protocol text and the incident reports below.
+
+Background (what “good” usually looks like)
+Ribo-seq aims to sequence ribosome-protected RNA fragments. Typical success indicators include:
+
+-	A narrow protected-fragment size distribution after digestion/selection (often ~28–34 nt; may vary by system).
+-	Clear enrichment of coding-region signal and strong 3-nt periodicity in aligned reads.
+-	A clean final library trace (dominant peak at expected library size, limited adapter/primer-dimer).
+-	Reasonable PCR duplication; if UMIs are present, deduplication should not saturate at extremely small numbers of unique UMIs.
+
+This protocol also encodes a UMI in the adapter/read structure (random bases denoted by N).
+
+Competition framing
+There are several issues across the incidents:
+
+-	Some are protocol/document defects present in the originally distributed protocol.
+-	There are some execution mistakes (not written in the protocol) by the experimenter. Only observations that may be derived from the mistakes are documented.
+
+Sub-Problems
+1-1. Incident A
+Task: Based on the report and observations, propose the most likely root cause(s) and the next steps to confirm and fix the issue.
+
+User report
+
+“We followed the protocol end-to-end, but the final libraries are kind of messy and the yield jumps around between runs. Sometimes we get a decent peak; other times it’s smeary and hard to quantify.”
+
+Observations
+
+-	TapeStation/Bioanalyzer traces show a main library peak plus elevated baseline/smear and occasional small peaks.
+-	qPCR-based quantification shows poor amplification efficiency (steeper Ct variance between replicates than expected).
+-	A260/230 (when measured) is low in some runs, suggesting carryover of salts/solvents.
+-	Repeating cleanup sometimes improves the trace but not consistently.
+
+1-2. Incident B
+Task: Based on the report and observations, propose the most likely root cause(s) and the next steps to confirm and fix the issue.
+
+User report
+
+“Same reagents and same protocol, but different people in the lab get different outcomes. PCR is sometimes fine and sometimes barely works. We didn’t intentionally change anything, so we’re not sure what part is sensitive.”
+
+Observations
+
+-	Strong run-to-run variability depending on operator.
+-	PCR sometimes fails or needs extra cycles; when it does amplify, size looks plausible.
+-	Repeat attempt with an extended bead air-dry (and careful removal of residual ethanol) restores normal amplification without changing reagents.
+-	No single protocol text change explains why only some operators see the issue.
+
+1-3. Incident C
+Task: Based on the report and observations, propose the most likely root cause(s) and the next steps to confirm and fix the issue.
+
+User report
+
+“RNA recovery seemed OK, and the library has a peak, but the sequencing results don’t look like our past Ribo-seq runs. The fragments seem bigger than we expected and the usual ‘frame pattern’ isn’t obvious.”
+
+Observations
+
+-	Gel/fragment QC of protected fragments shows a broad distribution with substantial material >40 nt.
+-	Sequencing QC:
+-	Overall alignment rate is acceptable.
+-	3-nt periodicity at P-sites is weak/near-absent.
+-	Reads show increased mapping outside CDS compared to prior internal datasets.
+-	Library yield after PCR is not obviously low; final library peak exists but downstream interpretability is poor.
+
+1-4. Incident D
+Task: Based on the report and observations, propose the most likely root cause(s) and the next steps to confirm and fix the issue.
+
+User report
+
+“The bioinformatics side is giving us strange duplication numbers. After deduplication, it looks like almost everything collapses into a tiny number of molecules, which doesn’t match how much input we started with.”
+
+Observations
+
+-	After UMI extraction, the number of distinct UMIs observed is extremely small.
+-	Deduplication collapses a large fraction of reads even in moderately sized datasets.
+-	A histogram of observed UMI strings is heavily concentrated in a tiny set; uniqueness saturates early.
+-	Downstream quantification across genes is unusually noisy and sensitive to small pipeline changes.
+
+1-5. Incident E
+Task: Based on the report and observations, propose the most likely root cause(s) and the next steps to confirm and fix the issue.
+
+User report
+
+“We keep getting mostly short junk products instead of a clean library peak. We tried repeating the run and got basically the same outcome. We did make fresh stocks recently, but we didn’t change anything on purpose.”
+
+Observations
+
+-	A quick denaturing gel check right after the ligation step shows the RNA band at the same position as the pre-ligation control, with no clear shifted product band.
+-	The final library trace is dominated by short artifacts; the expected library peak is weak or absent.
+-	Replacing enzymes (fresh ligase, fresh buffers) does not reliably recover the expected product; the failure is reproducible across repeats.
+-	Input RNA quality metrics (RIN/TapeStation) look acceptable and similar to runs that worked previously.
+-	In failed sequencing runs, the first ~20–30 bases of Read 1 are highly enriched for primer/adapter-like sequence, but the expected linker-specific prefix from the protocol appears at very low frequency.
+-	The new oligo shipment paperwork differs from prior orders in at least one of: molecule type (RNA vs DNA), terminal modifications, or purification grade (e.g., HPLC vs desalted).
+1-6. Preliminary data analysis
+You are given a small pilot Ribo-seq dataset focused on a single transcript. Process the raw FASTQ into a per-position footprint count array and summarize what the data suggests.
+
+Expected deliverables
+
+-	counts_raw.csv and counts_dedup.csv: counts per transcript position (state your coordinate convention clearly).
+-	A histogram plot showing the distribution of 5' start positions across the transcript (raw and deduplicated side-by-side).
+-	A single HTML report that, for this single-transcript dataset, summarizes basic QC suitable for Ribo-seq and your interpretation.
+-	A written interpretation: what (if anything) looks biologically meaningful, and 2–4 concrete follow-up checks or next steps.
+
+
+## Core Objective
+Diagnose root causes of multiple failure modes in a ribosome profiling (Ribo-seq) workflow using only the distributed wet-lab protocol and incident reports, then propose fixes plus validation/prevention steps. Additionally, process a small pilot FASTQ dataset for a single transcript into per-position footprint counts (raw and UMI-deduplicated) and summarize QC/interpretation in a report.
+
+# Task Details
+
+
+## Suggested Direction
+
+
+---
+
+# Task
+Using the information above, generate a structured scientific report that addresses the stated problem by synthesizing relevant prior research.
+
+
+[List of Sub-Problems to Address]
+- [1_1_Incident_A] Incident A: Messy libraries, variable yield, and PCR quantification issues
+  Description: Using protocol.md and the provided Incident A observations, infer the most likely root cause(s) explaining smeary traces, variable yield, poor qPCR efficiency/replicate variance, and occasional low A260/230. Propose (i) the next confirmatory checks that can be done without new wet-lab experiments (e.g., evidence obtainable from existing traces/notes and simple re-analyses), (ii) concrete protocol fixes (wording/steps) to prevent recurrence, and (iii) a validation and prevention plan (acceptance criteria, decision points, and operator-independent checkpoints).
+  Approach: Protocol forensics + failure-mode mapping:
+- Map each observation to common Ribo-seq library failure modes: carryover ethanol/guanidinium/salts from bead cleanups; bead carryover; incomplete removal of wash buffer; over/under drying beads; excess adapters/primer-dimers; column/gel extraction solvent carryover.
+- Use the low A260/230 + improved traces after repeat cleanup to prioritize chemical carryover/inhibitors as primary causes (PCR inhibition and smeary traces).
+- Identify protocol steps where solvent/salt carryover is likely (AMPure/SPRIs, ethanol washes, column washes, gel extraction) and check whether protocol.md has ambiguous/insufficient instructions (air-dry time range, visual cues, elution volume, bead ratio, temperature).
+- Confirmation steps (no new experiments): review existing electropherograms for characteristic adapter/primer-dimer peaks; compare Ct shifts vs input and look for inhibition patterns; check whether runs with low A260/230 correlate with poor amplification; inspect any available notes on bead dryness, wash times, and elution handling.
+- Fixes: specify bead ratios and exact wash/dry guidance (e.g., remove residual ethanol, do not overdry past cracking), include optional second cleanup when baseline is elevated, define acceptance criteria (A260/230 threshold, trace peak-to-baseline, no visible small-peak artifacts), and require documentation of timing/volumes.
+- Prevention: add a standardized post-cleanup QC gate (trace + qPCR efficiency metrics) before proceeding; add an operator checklist and a ‘stop if inhibition suspected’ decision tree.
+
+- [1_2_Incident_B] Incident B: Operator-dependent PCR success rescued by extended bead air-dry
+  Description: Using protocol.md and Incident B observations, diagnose why different operators get different outcomes and why extended bead air-dry restores amplification. Propose confirmatory steps, protocol edits to eliminate operator sensitivity, and a validation/prevention plan focused on standardization and training.
+  Approach: Root-cause reasoning anchored on the key intervention:
+- Treat the rescue by extended bead air-dry/careful ethanol removal as strong evidence for ethanol carryover (or other wash-buffer carryover) inhibiting PCR and/or reducing effective library concentration.
+- Identify where protocol.md relies on subjective cues (e.g., “air-dry briefly”) that lead to operator variance; propose objective timing + environmental constraints (room temp, humidity, bead pellet size) and explicit ‘ethanol removal’ techniques (second aspiration, brief spin-down, avoiding pellet disturbance).
+- Confirmation steps (no new experiments): compare operator notes with outcomes; look for correlations between drying time and Ct or amplification failure; inspect traces for signatures of inhibition vs true low yield.
+- Fixes: add explicit dry-time windows and visual cues (matte pellet surface, no visible droplets), recommend a brief additional drying step after last wash, and include a warning about overdrying that reduces elution.
+- Prevention: introduce a standardized checklist, required documentation of air-dry time, and a small internal positive-control amplification step (same library aliquot, fixed cycle number) as an operator-independent pass/fail gate.
+
+- [1_3_Incident_C] Incident C: Larger-than-expected fragments and weak/absent 3-nt periodicity
+  Description: Using protocol.md and Incident C observations, diagnose the most likely wet-lab root cause(s) producing a broad footprint size distribution (including >40 nt), acceptable alignment but weak periodicity, and increased mapping outside CDS. Provide confirmatory analyses/checks that can be done from existing sequencing/QC artifacts, plus protocol fixes and a validation/prevention plan to recover canonical Ribo-seq signal.
+  Approach: Diagnose based on hallmark Ribo-seq signatures:
+- Interpret broad >40 nt protected fragments + weak periodicity as consistent with insufficient/ineffective nuclease digestion and/or inadequate size selection (leading to mixed RNA fragments resembling RNA-seq or partially digested RNP fragments).
+- Also consider monosome isolation issues (disomes/oligomers), altered translation inhibitor usage, or rRNA contamination affecting interpretability.
+- Confirmatory checks using existing data: stratify read QC by length (periodicity often emerges in 28–34 nt); quantify mapping distribution (CDS vs UTR) conditional on length; check whether longer reads preferentially map outside CDS; examine metagene-like frame periodicity if CDS coordinates are known/derivable; check for abnormal length modes (e.g., disome peaks).
+- Protocol review: locate digestion step details (enzyme type, units, temperature, timing, buffer composition, Mg2+, mixing) and size selection instructions (gel excision range; bead-based selection cutoffs). Identify ambiguities likely to yield under-digestion or overly broad selection.
+- Fixes: recommend digestion optimization (titration plan, time-course, enzyme activity handling, RNase inhibitors compatibility), enforce tight size selection window, and include explicit QC gates (protected fragment length distribution must be narrow; periodicity must be detectable in expected length range).
+- Prevention: add a ‘length-distribution and periodicity’ acceptance checklist prior to deep sequencing; require retention of intermediate fragment QC images and digestion conditions in run logs.
+
+- [1_4_Incident_D] Incident D: UMI deduplication collapses reads into a tiny number of molecules
+  Description: Using protocol.md and Incident D observations, identify the most likely causes of extremely low apparent UMI diversity and over-collapsing during deduplication. Propose bioinformatic confirmation steps (from existing FASTQ/processing outputs), protocol/ordering checks (UMI/adapter design and synthesis), and robust fixes (pipeline + wet-lab prevention recommendations).
+  Approach: Separate ‘true low diversity’ from ‘UMI extraction/design failure’:
+- Prioritize explanations that yield a histogram concentrated in a tiny set of UMI strings: (i) wrong UMI parsing/extraction (extracting constant bases instead of the random Ns), (ii) UMI not actually randomized due to oligo synthesis/order error (Ns not synthesized as degeneracy), (iii) UMI length too short or low-complexity, (iv) read structure differs from protocol.
+- Confirmation (computational): directly inspect raw reads at the expected UMI location per protocol.md; compute base composition per UMI position (should be ~uniform); check whether the ‘UMI’ segment matches a constant adapter motif; compare observed UMI length to expected; test alternative extraction regexes; quantify UMI collision rate vs dataset size; verify whether UMI is on Read1 prefix or embedded near adapter.
+- Pipeline fixes: use umi_tools extract with an explicit regex matching the protocol’s N positions; validate extraction by reporting per-position entropy and fraction of Ns; implement safeguards (fail pipeline if UMI diversity below threshold).
+- Wet-lab/design fixes (as recommendations): verify adapter/primer sequences and ordering specs; require incoming oligo QC/spec checks (degenerate positions, modifications, purification); consider moving to longer UMIs if protocol allows.
+- Prevention: add a standardized ‘UMI sanity check’ report section (unique UMI counts, top-UMI fraction, per-position entropy) before deduplication is trusted for quantification.
+
+- [1_5_Incident_E] Incident E: Reproducible ligation failure and short artifact-dominated libraries after new oligo stocks
+  Description: Using protocol.md and Incident E observations, diagnose why ligation does not produce a shifted band, why final libraries are dominated by short artifacts, and why replacing enzymes does not rescue. Incorporate the evidence about new oligo shipment differences (RNA vs DNA, terminal modifications, purification). Propose confirmatory checks, concrete fixes (including procurement/spec language), and a validation/prevention plan.
+  Approach: Treat as adapter/oligo-spec incompatibility with the ligation chemistry:
+- Use the key evidence: no ligation shift on denaturing gel + reproducible failure across repeats + enzyme replacement ineffective + sequencing shows primer/adapter-like early bases while protocol-specific linker prefix is rare + oligo paperwork changed.
+- Most likely root causes: wrong molecule type (DNA vs RNA adapter for an RNA ligation), missing required 5' phosphate or pre-adenylation, incompatible 3' blocking group (or missing block causing self-ligation/side products), wrong orientation/sequence, low-grade purification causing truncated products.
+- Confirmation steps: compare received oligo specs to protocol.md requirements (exact sequence, 5'/3' modifications, adenylation state, strand type); inspect raw reads for presence/absence of the expected linker prefix; check whether any reads contain the exact adapter sequence or only primer-dimers; review gel images for expected ligation shift position.
+- Fixes: rewrite ordering language in protocol.md (explicit: RNA/DNA, 5' phosphate, 3' OH vs 3' block, pre-adenylated if required, purification grade such as HPLC), include incoming-oligo acceptance QC (mass/spec sheet review + small test ligation/gel shift recommendation).
+- Prevention: add a mandatory ‘adapter identity check’ using read-level prefix frequency from the first sequencing reads (or a minimal pilot) and a ligation-step gel-shift gate before committing to PCR/library amplification.
+
+- [1_6_Preliminary_Data_Analysis] Pilot single-transcript Ribo-seq processing, per-position counts, and QC interpretation
+  Description: Process reads.fastq.gz against reference.fa (single transcript) into per-position footprint count arrays. Produce counts_raw.csv and counts_dedup.csv with a clearly stated coordinate convention. Generate a histogram plot of 5' start positions across the transcript (raw vs deduplicated). Create a single HTML report summarizing Ribo-seq-relevant QC and your interpretation of whether any signal looks biologically meaningful, plus 2–4 concrete follow-up checks/next steps.
+  Approach: A minimal, reproducible Ribo-seq-style pipeline tailored to a single reference transcript:
+- Read preprocessing: FastQC (or fastp) to summarize quality and adapter content; determine read structure from protocol.md (adapter sequence and UMI ‘N’ positions).
+- Adapter/quality trimming: cutadapt (explicit adapter sequence; handle read-through) or fastp; retain post-trim length distribution.
+- UMI handling: extract UMI from the correct location per protocol.md (umi_tools extract with regex) and append to read name; keep both raw (no dedup) and dedup branches.
+- Alignment: for a single transcript, use bowtie2 (end-to-end/local) or minimap2 (short-read settings) against reference.fa; generate BAM.
+- Counting: compute 5' aligned start position per read on the transcript (define convention, e.g., 1-based transcript coordinate of the leftmost aligned base on the + strand; specify how soft-clipping is handled). Aggregate counts into an array of length = transcript length.
+- Deduplication: umi_tools dedup using alignment position (5' start) + UMI; regenerate the per-position counts.
+- Outputs:
+  - counts_raw.csv: columns like position, count_raw (optionally include strand if relevant).
+  - counts_dedup.csv: position, count_dedup.
+  - Plot: side-by-side histogram/barplot of 5' start positions (raw vs dedup).
+  - HTML report: mapping rate, length distribution pre/post trim, adapter-prefix frequency check, UMI diversity metrics (unique UMIs, top-UMI fraction, per-position entropy), duplication rates, and (if an ORF can be inferred) a basic 3-nt frame periodicity check by mapping 5' starts modulo 3 within the inferred CDS.
+- Interpretation: state whether peaks/periodicity/ORF-localization are consistent with footprints vs noise; propose 2–4 next checks such as (i) verify UMI extraction correctness, (ii) stratify periodicity by read length, (iii) confirm expected linker prefix frequency, (iv) inspect mismatch/soft-clip patterns suggesting adapter contamination or mis-trimming.
+

@@ -1,0 +1,29 @@
+## Reliability Score
+- Score: 72
+- Rationale: The report demonstrates strong conceptual understanding of Ribo-seq troubleshooting and provides logically coherent diagnoses for each incident. However, several critical weaknesses undermine reliability: (1) the analysis deliverables (CSVs, plots, HTML report) are described algorithmically but not actually produced, making Section 1-6 unverifiable; (2) diagnoses rely heavily on pattern-matching to common failure modes without ruling out alternative explanations; (3) the report does not directly reference or quote specific passages from `protocol.md`, leaving claims about protocol defects unsupported; (4) UMI extraction parameters and adapter sequences are assumed rather than explicitly derived from the provided artifacts.
+
+## Critiques / Limitations / Risks (in priority order)
+
+1. **Section 1-6 deliverables are not executed**: The problem explicitly requires `counts_raw.csv`, `counts_dedup.csv`, a histogram plot, and an HTML report. The answer provides only algorithmic descriptions and placeholder specifications. Without actual outputs, the analysis cannot be validated, and the "written interpretation" is speculative rather than data-driven. This is a major compliance gap.
+
+2. **No direct evidence from `protocol.md` is cited**: Throughout Incidents A–E, the report asserts protocol defects (e.g., missing bead-drying criteria, ambiguous UMI positions, unspecified adapter modifications) without quoting or referencing specific protocol text. A rigorous diagnosis should demonstrate exactly where the protocol is deficient by citing the relevant sections.
+
+3. **Alternative hypotheses insufficiently addressed**: For each incident, the report converges on a single "most likely" cause without systematically ruling out alternatives. For example, Incident A attributes issues to cleanup carryover, but reagent degradation, incorrect bead ratios, or over-drying (causing DNA loss) are not discussed. Incident C attributes weak periodicity to under-digestion, but ribosome run-off during lysis or incorrect P-site offset assignment are not considered.
+
+4. **UMI extraction logic is assumed, not derived**: The report acknowledges that UMI parsing depends on `protocol.md` but does not extract or verify the actual UMI structure from the provided protocol. If the protocol is ambiguous (as suspected for Incident D), the report should explicitly identify the ambiguity and propose multiple parsing hypotheses to test computationally.
+
+5. **Coordinate convention stated but not validated**: The report declares 1-based transcript coordinates and 5′ start counting, but does not verify whether this matches the protocol's intended convention or standard Ribo-seq P-site assignment rules. Misalignment between stated and actual conventions would invalidate downstream periodicity analysis.
+
+6. **Periodicity analysis deferred without justification**: The report notes CDS annotation may be unavailable, but `reference.fa` for a "toy_gene" likely contains a simple ORF that could be inferred computationally (start/stop codon scanning). Deferring periodicity analysis entirely weakens the QC assessment for a Ribo-seq pilot.
+
+7. **Incident E diagnosis is circular**: The report concludes adapter incompatibility based on observations that ligation failed and paperwork differs, but does not specify which modification (5′-phosphate, pre-adenylation, 3′-block) is required by the protocol's ligation chemistry. Without this, the "fix" is generic rather than actionable.
+
+8. **Reproducibility of proposed fixes is limited**: Recommendations like "dry 4–6 min until pellet is matte" or "require A260/230 ≥ ~1.8" are reasonable but lack empirical grounding from the provided data. The report does not indicate whether historical successful runs (mentioned in incidents) had documented A260/230 values that could serve as benchmarks.
+
+9. **No quantitative thresholds for QC gates**: Proposed QC checkpoints (e.g., UMI diversity, linker prefix frequency, fragment size distribution) lack specific pass/fail thresholds, reducing their utility as actionable protocol amendments.
+
+10. **Assumption of single-cause failures**: Real troubleshooting often involves compound failures. The report treats each incident as having one root cause, but Incident A's symptoms (smear + variable yield + poor qPCR) could reflect multiple simultaneous issues (carryover + degradation + adapter artifacts).
+
+## Final Short Summary to Attach
+
+The report provides a well-organized and conceptually sound troubleshooting framework for the five incidents, with plausible root-cause hypotheses and reasonable preventive recommendations. However, critical limitations reduce its reliability: (1) Section 1-6 deliverables are described but not produced, violating explicit requirements; (2) diagnoses are not grounded in direct citations from `protocol.md`; (3) alternative explanations are not systematically excluded; (4) key parameters (UMI structure, adapter sequence, CDS boundaries) are assumed rather than extracted from artifacts. The answer would benefit from explicit protocol text analysis, actual computational outputs, and more rigorous differential diagnosis for each incident.

@@ -1,0 +1,29 @@
+## Reliability Score
+- Score: 72
+- Rationale: The framework demonstrates comprehensive architectural design with appropriate multimodal integration strategies and explicit modification-type contribution mechanisms via MoE gating. However, the proposal lacks empirical validation, contains several technically underspecified components (particularly regarding TERRA-specific feature extraction from repetitive regions), and makes implicit assumptions about data availability and quality that may not hold in practice. The mechanistic interpretability claims are overstated relative to what the proposed methods can actually deliver.
+
+## Critiques / Limitations / Risks (in priority order)
+
+1. **TERRA-specific technical challenges inadequately addressed**: The framework treats TERRA modification mapping as a standard epitranscriptomic analysis, but TERRA molecules are transcribed from highly repetitive telomeric regions. The proposal does not adequately address how MeRIP-seq/miCLIP reads from repetitive sequences will be unambiguously mapped, how modification sites will be distinguished from artifacts in repetitive contexts, or how the "TERRA-associated regions" will be operationally defined across different cell types with variable subtelomeric structures.
+
+2. **Circular reasoning in feature engineering for interpretability**: The framework pre-groups features into m6A/Ψ/m5C blocks (Module A) and then claims to "discover" modification-type contributions (Module C). This design choice embeds the hypothesis structure into the architecture, potentially inflating apparent interpretability while masking whether the model genuinely learns modification-specific biology versus exploiting correlated batch effects or technical artifacts within each block.
+
+3. **MoE gating weights as contribution measures are problematic**: The proposal treats MoE gating weights as direct quantification of modification-type functional contribution. However, gating weights reflect routing decisions optimized for prediction accuracy, not biological importance. A modification type could have low gating weight yet contain critical information already captured by correlated features in other modalities, leading to misleading biological interpretations.
+
+4. **Missing specification of sample size requirements and power considerations**: The framework proposes a complex multimodal architecture with numerous parameters (VAE encoders, Transformer cross-attention, MoE experts) but provides no guidance on minimum sample sizes needed for stable training, nor discusses the risk of overfitting given typical multi-omics cohort sizes (often n < 200). The mention of "pathway-level compression" as a mitigation is insufficient without quantitative guidance.
+
+5. **Pathway-level mechanistic claims exceed methodological support**: The proposal claims to provide "mechanistic interpretability linking molecular features to biological pathways" but the actual methods (correlation of attributions with pathway scores, attention rollout) only establish statistical associations. The term "mechanistic" implies causal understanding that cannot be derived from these correlational analyses.
+
+6. **Imaging feature extraction assumptions**: The proposal assumes Cellpose/StarDist can reliably segment telomeric foci from FISH images, but telomere foci are often diffraction-limited, clustered, and variable in intensity. No validation strategy is proposed for segmentation accuracy, and the downstream morphology metrics (Ripley's K, colocalization indices) are sensitive to segmentation errors.
+
+7. **Missing modality handling may introduce bias**: While modality dropout during training is mentioned, the framework does not address potential systematic missingness (e.g., imaging data available only for certain disease stages) that could confound predictions and attributions. The modality presence mask approach assumes missing-at-random, which is often violated in clinical multi-omics studies.
+
+8. **Calibration and uncertainty claims lack methodological depth**: The proposal mentions deep ensembles and MC dropout for uncertainty quantification but does not specify ensemble size, dropout rates, or how these will be combined. The reference to "CLUE-style alignment" is vague and not operationally defined.
+
+9. **Reproducibility concerns**: Key hyperparameters (embedding dimensions, number of attention heads, expert network architectures, regularization strengths) are either unspecified or given as ranges without selection criteria. This limits reproducibility and makes it difficult to assess computational feasibility.
+
+10. **Biological plausibility checks are weak**: The proposed validation that "important signals for m6A align with known TERRA-relevant patterns" is circular if those patterns were used to define features. Independent biological validation (e.g., perturbation experiments, external cohorts) is acknowledged as out of scope but represents a fundamental limitation for claiming biological relevance.
+
+## Final Short Summary to Attach
+
+This framework proposal presents a technically sophisticated multimodal architecture with explicit modification-type contribution mechanisms. However, critical weaknesses include: (1) insufficient treatment of TERRA-specific mapping challenges in repetitive regions; (2) potential circularity in interpretability claims due to pre-structured feature grouping; (3) conflation of model routing decisions with biological importance; (4) absence of sample size/power considerations for the proposed complex architecture; and (5) overstated mechanistic claims from correlational analyses. The proposal would benefit from pilot validation on real TERRA modification data, explicit handling of repetitive sequence mapping, and more conservative framing of interpretability outputs as model-centric rather than biologically mechanistic.

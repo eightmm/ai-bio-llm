@@ -21,10 +21,10 @@ class SummarizerLLM(BaseAnalyst):
     Generates natural language summary of analysis results for downstream Solver module
     """
 
-    def __init__(self):
+    def __init__(self, temperature: float = None):
         """Initialize Summarizer LLM"""
-        super().__init__(model=Config.MODEL_DATA_SUMMARIZER)
-        
+        super().__init__(model=Config.MODEL_DATA_SUMMARIZER, temperature=temperature)
+
         # Load consolidated prompts
         prompt_content = self._read_prompt_file("summarizer_prompts.md")
         self.prompts = self._split_prompts(prompt_content)

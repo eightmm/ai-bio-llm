@@ -1,0 +1,1125 @@
+# Problem
+Problem 1. [Troubleshooting an Ribosome Profiling Experiment]
+You are given a ribosome profiling (Ribo-seq) wet-lab protocol and a set of incident reports from teams who attempted the workflow. Your job is to diagnose the root causes, propose fixes, and design a validation and prevention plan.
+
+Provided artifact
+
+-	protocol.md: The protocol “as distributed” to teams.
+-	reference.fa: a single transcript reference sequence (toy_gene).
+-	reads.fastq.gz: 50-nt single-end reads (a few hundred total).
+
+Constraints
+
+-	Assume no ability to run new wet-lab experiments during the competition.
+-	You may propose additional experiments/QC as recommendations, but your core answers must be supported by the protocol text and the incident reports below.
+
+Background (what “good” usually looks like)
+Ribo-seq aims to sequence ribosome-protected RNA fragments. Typical success indicators include:
+
+-	A narrow protected-fragment size distribution after digestion/selection (often ~28–34 nt; may vary by system).
+-	Clear enrichment of coding-region signal and strong 3-nt periodicity in aligned reads.
+-	A clean final library trace (dominant peak at expected library size, limited adapter/primer-dimer).
+-	Reasonable PCR duplication; if UMIs are present, deduplication should not saturate at extremely small numbers of unique UMIs.
+
+This protocol also encodes a UMI in the adapter/read structure (random bases denoted by N).
+
+Competition framing
+There are several issues across the incidents:
+
+-	Some are protocol/document defects present in the originally distributed protocol.
+-	There are some execution mistakes (not written in the protocol) by the experimenter. Only observations that may be derived from the mistakes are documented.
+
+Sub-Problems
+1-1. Incident A
+Task: Based on the report and observations, propose the most likely root cause(s) and the next steps to confirm and fix the issue.
+
+User report
+
+“We followed the protocol end-to-end, but the final libraries are kind of messy and the yield jumps around between runs. Sometimes we get a decent peak; other times it’s smeary and hard to quantify.”
+
+Observations
+
+-	TapeStation/Bioanalyzer traces show a main library peak plus elevated baseline/smear and occasional small peaks.
+-	qPCR-based quantification shows poor amplification efficiency (steeper Ct variance between replicates than expected).
+-	A260/230 (when measured) is low in some runs, suggesting carryover of salts/solvents.
+-	Repeating cleanup sometimes improves the trace but not consistently.
+
+1-2. Incident B
+Task: Based on the report and observations, propose the most likely root cause(s) and the next steps to confirm and fix the issue.
+
+User report
+
+“Same reagents and same protocol, but different people in the lab get different outcomes. PCR is sometimes fine and sometimes barely works. We didn’t intentionally change anything, so we’re not sure what part is sensitive.”
+
+Observations
+
+-	Strong run-to-run variability depending on operator.
+-	PCR sometimes fails or needs extra cycles; when it does amplify, size looks plausible.
+-	Repeat attempt with an extended bead air-dry (and careful removal of residual ethanol) restores normal amplification without changing reagents.
+-	No single protocol text change explains why only some operators see the issue.
+
+1-3. Incident C
+Task: Based on the report and observations, propose the most likely root cause(s) and the next steps to confirm and fix the issue.
+
+User report
+
+“RNA recovery seemed OK, and the library has a peak, but the sequencing results don’t look like our past Ribo-seq runs. The fragments seem bigger than we expected and the usual ‘frame pattern’ isn’t obvious.”
+
+Observations
+
+-	Gel/fragment QC of protected fragments shows a broad distribution with substantial material >40 nt.
+-	Sequencing QC:
+-	Overall alignment rate is acceptable.
+-	3-nt periodicity at P-sites is weak/near-absent.
+-	Reads show increased mapping outside CDS compared to prior internal datasets.
+-	Library yield after PCR is not obviously low; final library peak exists but downstream interpretability is poor.
+
+1-4. Incident D
+Task: Based on the report and observations, propose the most likely root cause(s) and the next steps to confirm and fix the issue.
+
+User report
+
+“The bioinformatics side is giving us strange duplication numbers. After deduplication, it looks like almost everything collapses into a tiny number of molecules, which doesn’t match how much input we started with.”
+
+Observations
+
+-	After UMI extraction, the number of distinct UMIs observed is extremely small.
+-	Deduplication collapses a large fraction of reads even in moderately sized datasets.
+-	A histogram of observed UMI strings is heavily concentrated in a tiny set; uniqueness saturates early.
+-	Downstream quantification across genes is unusually noisy and sensitive to small pipeline changes.
+
+1-5. Incident E
+Task: Based on the report and observations, propose the most likely root cause(s) and the next steps to confirm and fix the issue.
+
+User report
+
+“We keep getting mostly short junk products instead of a clean library peak. We tried repeating the run and got basically the same outcome. We did make fresh stocks recently, but we didn’t change anything on purpose.”
+
+Observations
+
+-	A quick denaturing gel check right after the ligation step shows the RNA band at the same position as the pre-ligation control, with no clear shifted product band.
+-	The final library trace is dominated by short artifacts; the expected library peak is weak or absent.
+-	Replacing enzymes (fresh ligase, fresh buffers) does not reliably recover the expected product; the failure is reproducible across repeats.
+-	Input RNA quality metrics (RIN/TapeStation) look acceptable and similar to runs that worked previously.
+-	In failed sequencing runs, the first ~20–30 bases of Read 1 are highly enriched for primer/adapter-like sequence, but the expected linker-specific prefix from the protocol appears at very low frequency.
+-	The new oligo shipment paperwork differs from prior orders in at least one of: molecule type (RNA vs DNA), terminal modifications, or purification grade (e.g., HPLC vs desalted).
+1-6. Preliminary data analysis
+You are given a small pilot Ribo-seq dataset focused on a single transcript. Process the raw FASTQ into a per-position footprint count array and summarize what the data suggests.
+
+Expected deliverables
+
+-	counts_raw.csv and counts_dedup.csv: counts per transcript position (state your coordinate convention clearly).
+-	A histogram plot showing the distribution of 5' start positions across the transcript (raw and deduplicated side-by-side).
+-	A single HTML report that, for this single-transcript dataset, summarizes basic QC suitable for Ribo-seq and your interpretation.
+-	A written interpretation: what (if anything) looks biologically meaningful, and 2–4 concrete follow-up checks or next steps.
+
+
+---
+
+# Prior research / evidence summary (Search output)
+# Comprehensive Diagnostic and Remediation Report: Troubleshooting Failures in Ribosome Profiling Workflow
+
+A ribosome profiling experiment aims to capture ribosome-protected mRNA fragments through nuclease digestion, followed by library construction and sequencing to reveal the translational landscape of a cell or tissue[1][4]. The technical workflow is complex, spanning wet-lab biology, sample preparation chemistry, and bioinformatic processing. When failures occur, they manifest across multiple stages, each with distinct diagnostic signatures. This report systematically investigates five major incident classes from a distributed Ribo-seq protocol implementation, proposes evidence-based root-cause analyses, and recommends operational and procedural fixes supported by existing data and literature. Additionally, we present a pilot bioinformatic analysis of a single-transcript dataset demonstrating quality control and interpretation strategies for Ribo-seq data.
+
+## Incident A: Messy Library Traces, Variable Yield, and PCR Inefficiency
+
+### Problem Summary and Observations
+
+The primary complaint is inconsistent library quality characterized by smeary TapeStation/Bioanalyzer traces with elevated baseline signal, occasional spurious peaks, and poor quantification reproducibility via qPCR. Critically, A260/230 ratios are often depressed, suggesting carryover of contaminants from extraction buffers, and repeat cleanup sometimes—but not consistently—improves the trace. The underlying phenomenon appears to be chemical inhibition and/or contamination in the final library pool.
+
+### Root-Cause Analysis
+
+#### Chemical Carryover from Bead-Based Purifications
+
+The most probable root cause is **incomplete removal of ethanol and/or chaotropic salts during magnetic-bead (SPRI/AMPure) cleanup steps**[37][40][49]. In typical Ribo-seq workflows, multiple cleanup operations occur: after adapter ligation, after reverse-transcription cDNA synthesis, and post-PCR amplification. Each involves binding nucleic acids to paramagnetic beads, washing with ethanol, and elution. If residual ethanol or wash buffer (which often contains high concentrations of guanidinium isothiocyanate or other chaotropes) carry over into the eluate, they inhibit downstream PCR polymerase activity and can alter cDNA structure[37][40].
+
+The observation that A260/230 is low supports this: a depressed A260/230 ratio (typically <1.8–2.0 for pure nucleic acids) strongly indicates contamination by phenol, carbohydrates, or more commonly, residual salts and alcohols from extraction buffers. Literature on nucleic acid purification confirms that chaotropic salts and alcohols are potent PCR inhibitors even at low residual concentrations[37][40].
+
+#### Why Variability Exists
+
+The inconsistency across runs suggests operator-dependent variations in bead handling that are not fully codified in the protocol: differences in air-dry duration, gentle aspiration technique, bead pellet visibility cues, and elution-buffer contact with beads. Some operators may more diligently remove ethanol residue or allow adequate drying time, while others do not, leading to a distribution of carryover levels and thus variable PCR performance.
+
+### Confirmatory Checks (Using Existing Data)
+
+1. **Retrospective Trace Analysis**: Review all existing TapeStation/Bioanalyzer electropherograms. Correlate the degree of smearing and baseline elevation with:
+     - Reported PCR Ct values and Ct standard deviation across replicates
+     - A260/230 measurements (if available)
+     - Any operator notes on bead drying time or unusual observations during cleanup
+
+2. **PCR Inhibition Signature**: Plot qPCR Ct values for libraries with varying A260/230 ratios. A systematic positive correlation between low A260/230 and elevated Ct (indicating inhibition) or high Ct variance would support carryover-based inhibition.
+
+3. **Repeat Cleanup Efficacy**: If records document which runs received a second cleanup step and the outcomes before/after, quantify whether the secondary cleanup correlates with improved traces and qPCR efficiency.
+
+### Proposed Protocol Fixes
+
+The protocol.md should be revised to include explicit, objective guidance on bead cleanup:
+
+**Revised Bead Cleanup Section (exemplar text):**
+
+> **Magnetic-Bead Purification (SPRI/AMPure XP):**
+>
+> 1. **Bead Preparation & Binding**: Equilibrate beads to 20–25 °C for at least 30 minutes before use[49]. Use a bead:sample ratio of 1.8× for cleanup (bind and remove contaminants)[52]. Mix thoroughly by pipetting 10 times; incubate at room temperature for 5 minutes.
+> 
+> 2. **Isolation & First Wash**: Place the sample on a magnetic stand until the solution clears (2–3 minutes); avoid disturbance. Carefully remove and discard the supernatant, leaving a small volume (~5 µL) to avoid bead loss[49].
+> 
+> 3. **Ethanol Washes**: While the tube remains on the magnet, add 200 µL of freshly prepared 80% ethanol without disturbing the bead pellet. Incubate for 30 seconds at room temperature, then carefully remove and discard the ethanol. Repeat for a second 80% ethanol wash (2 washes total)[49].
+> 
+> 4. **Critical Drying Step**: Remove the tube from the magnet and air-dry the bead pellet for 3–5 minutes at room temperature **until the bead surface appears matte and no visible liquid is present**[49][52]. **Do not over-dry past the point of visible cracking**, as this severely reduces elution efficiency[52].
+> 
+> 5. **Elution**: Remove the tube from the magnet (if still on it). Add the specified elution volume of nuclease-free water or buffer (typically 30–40 µL for library cleanup) and resuspend beads by pipetting 10 times. Incubate for 2 minutes to allow elution.
+> 
+> 6. **Transfer**: Place the tube back on the magnet for 2 minutes, then carefully transfer the eluate to a fresh tube, being careful not to carry over beads.
+
+**Optional Secondary Cleanup Gate**: When baseline signal is elevated on TapeStation (peak-to-baseline ratio <3:1), perform a repeat cleanup using the same protocol, re-eluting in a fresh aliquot of nuclease-free water. Document this action in the run log.
+
+### Validation & Prevention Plan
+
+**Acceptance Criteria for Library QC:**
+
+- A260/230 ratio ≥1.8 (suggesting minimal carryover)
+- TapeStation trace: single dominant peak with minimal baseline noise (peak-to-baseline ratio ≥3:1)
+- No visible small-peak artifacts (primer-dimers, truncated products)
+- qPCR amplification efficiency ≥90% (corresponds to slope of log-linear phase between −3.3 and −3.6, i.e., Ct doubling close to theoretical expectation)
+- qPCR Ct replicate variance (standard deviation) <0.5 cycles
+
+**Operator Checklist (to be completed and retained in run logs):**
+
+- Date/time of cleanup
+- Bead preparation time (confirm ≥30 min equilibration)
+- Bead:sample ratio used (record actual volumes)
+- Visual observation of bead pellet after each wash (color, wetness)
+- Air-dry duration in minutes (must be 3–5 min and pellet must appear matte)
+- Elution volume and final tube labeling
+- A260/230 measurement (if performed immediately after cleanup)
+
+**Decision Tree (Stop-If Gate):**
+
+If any of the following are observed, halt downstream processing and perform troubleshooting:
+- A260/230 <1.5
+- TapeStation baseline elevated (peak-to-baseline <2:1) → perform secondary cleanup and re-measure
+- qPCR Ct standard deviation >0.7 cycles → suspect inhibition; measure A260/230 and consider re-cleanup
+- qPCR amplification efficiency <85% → investigate inhibition; do not proceed to deep sequencing until resolved
+
+This structured approach makes the cleanup procedure operator-independent and adds explicit acceptance criteria, reducing run-to-run variability.
+
+## Incident B: Operator-Dependent PCR Success Restored by Extended Bead Air-Dry
+
+### Problem Summary and Observations
+
+Different operators using the same protocol and reagents experience inconsistent PCR success. Some runs amplify normally while others require extra cycles or fail entirely. Notably, a key intervention—extending the bead air-dry time and carefully ensuring complete removal of residual ethanol—restored normal amplification without changing any other reagents or protocol text. This strongly implicates **ethanol carryover** as the mechanism.
+
+### Root-Cause Analysis
+
+The air-dry/ethanol-removal intervention is the critical clue. Ethanol is a known potent inhibitor of DNA polymerase and reverse transcriptase[37][40]. If bead pellets are not thoroughly dried or if a final residual ethanol droplet remains after the last wash, ethanol carries over into the eluate. The solubility of ethanol in water, combined with variability in how operators aspirate and the time allowed for evaporation, creates a distribution of residual ethanol concentrations across runs.
+
+Additionally, ethanol can alter the secondary structure of adapters and cDNA on the beads, potentially reducing ligation/amplification efficiency even in the absence of direct polymerase inhibition. Operators who naturally wait longer between the last wash and elution, or who use a brief spin-down to consolidate and then re-aspirate, remove more ethanol and experience better downstream performance.
+
+### Confirmatory Checks (Using Existing Data)
+
+1. **Operator-Outcome Correlation**: Create a table correlating each operator with their reported PCR outcomes (successful vs. delayed/failed amplification) and any notes they made about bead handling. Look for patterns in operators who consistently extend air-dry times or who mention checking for residual droplets.
+
+2. **Amplification Efficiency vs. Air-Dry Time**: If detailed run logs record the air-dry duration (in minutes), plot qPCR Ct or PCR cycle number against air-dry time. A negative correlation (longer drying → lower Ct, indicating better amplification) would support the hypothesis.
+
+3. **Residual Ethanol Inspection**: Ask operators to document (with photographs, if possible) the appearance of the bead pellet: "wet/shiny" (incomplete drying) vs. "matte/dry" (adequate drying). Correlate bead appearance with downstream PCR performance.
+
+### Proposed Protocol Fixes
+
+Revise the bead cleanup section to include explicit, objective drying cues and a mandatory post-wash residual-removal step:
+
+**Revised Air-Dry and Ethanol-Removal Section (exemplar text):**
+
+> **Air-Drying and Residual Ethanol Removal (Critical Step):**
+>
+> 1. After the second 80% ethanol wash and careful aspiration, ensure the tube remains on the magnetic stand.
+> 
+> 2. **Optional Spin-Down**: Briefly spin the tube (2 seconds at low speed, e.g., 500 × *g*) to consolidate any residual ethanol droplets to the bottom. Place the tube back on the magnet for 1 minute to re-separate beads.
+> 
+> 3. **Secondary Aspiration (Recommended)**: Using a fine-tip pipette, carefully remove any remaining liquid around the bead pellet without disturbing the beads. Inspect the wells/tube for visible droplets; if present, carefully aspirate them away.
+> 
+> 4. **Air-Dry Duration**: Allow the bead pellet to air-dry for **4–6 minutes** at room temperature without any cover. The pellet surface should transition from a wet/shiny appearance to a **matte/dry appearance** with no visible liquid.
+> 
+> 5. **Visual Confirmation**: Before proceeding, confirm that the bead pellet is matte and no small droplets are visible in the tube. If any liquid is visible, wait an additional 1–2 minutes.
+> 
+> 6. **Elution**: Only after confirming complete drying, remove the tube from the magnet, add the specified elution volume, and resuspend by pipetting.
+
+**Environmental Controls:**
+
+- All bead cleanups must be performed in a room at 20–25 °C with minimal air currents (e.g., not directly under a ceiling fan or air vent). If humidity is very low (<30%), allow slightly longer drying time to avoid bead overdrying.
+- Operators should be trained to use fine-tip aspirating pipettes to minimize bead disturbance and to work methodically to avoid bead carryover.
+
+### Validation & Prevention Plan
+
+**Operator Training & Competency Assessment:**
+
+- **Mandatory Training**: All personnel performing bead cleanups must complete a hands-on training session observing an experienced operator, followed by supervised practice (minimum 3 runs) with documented sign-off.
+- **Competency Checklist**: Before an operator performs independent runs, they must demonstrate proficiency in (i) bead equilibration timing, (ii) gentle aspiration without bead loss, (iii) recognition of matte vs. wet pellet appearance, and (iv) complete liquid removal.
+
+**Standardized Documentation:**
+
+- Every run must include a cleanup record stating:
+  - Operator name and date
+  - Air-dry duration (in minutes)
+  - Subjective pellet appearance at the time of elution (matte/dry vs. wet/shiny)
+  - Any deviations from the protocol
+
+**Process Control (Positive-Control Amplification):**
+
+- Prepare a small aliquot of a "standard" Ribo-seq library (confirmed quality) during the training phase. Divide this into single-use aliquots and store at −20 °C.
+- For each sequencing run, include one aliquot of this positive-control library as part of the final PCR amplification (same enzyme, buffers, cycle number as the experimental libraries).
+- Positive-control PCR should yield a defined product in a tight cycle range (e.g., visible by gel at 25 cycles). If the positive control fails or requires significantly more cycles than expected, suspect inhibition in the batch of reagents or an environmental issue (temperature, etc.), and investigate before proceeding with experimental runs.
+
+**Decision Tree (Operator-Independent Gate):**
+
+- If the positive-control PCR fails or cycles are >2 cycles higher than historical range: halt all processing and investigate reagent/environmental factors.
+- If an operator's run has high Ct or fails amplification, require that operator to repeat the bead cleanup step with oversight or supervisor confirmation before proceeding.
+
+## Incident C: Larger-Than-Expected Fragments and Weak 3-nt Periodicity
+
+### Problem Summary and Observations
+
+Final sequencing libraries contain fragments substantially larger than the expected 28–34 nt footprint window. The sequencing data shows acceptable mapping to the reference but weak or absent 3-nt periodicity at the P-site, suggesting a loss of the canonical single-codon-resolution signal characteristic of Ribo-seq. Additionally, a higher-than-expected fraction of reads maps outside coding sequence regions (CDS), consistent with non-specific RNA contamination or incomplete conversion of polysomes to monosomes.
+
+### Root-Cause Analysis
+
+#### Insufficient Nuclease Digestion
+
+The most likely explanation is **incomplete or ineffective nuclease digestion** of the mRNA surrounding the ribosomes[1][3][13]. Ribosomes protect approximately 28–34 nt of mRNA; however, if digestion is under-optimized (too little enzyme, too short incubation, suboptimal buffer conditions, or Mg²⁺ concentration), remaining mRNA extends beyond the ribosome's protection, resulting in larger footprints. Poor digestion also leaves polysome complexes intact, yielding disomes or higher-order complexes that produce longer protected fragments[16].
+
+Evidence supporting this interpretation: (i) broad protected-fragment distribution with substantial material >40 nt, (ii) weak periodicity (monosome footprints have sharp 3-nt periodicity due to ribosomal architecture; longer or mixed-length fragments reduce signal), (iii) reads mapping outside CDS (if polysomes are not fully converted to monosomes, the mixture of fragments from different ribosome positions will show less ribosome-specific enrichment and more diffuse mapping)[3].
+
+#### Inadequate Size Selection
+
+A secondary cause may be **over-permissive size selection** during library preparation (e.g., gel excision range too broad, or magnetic-bead size selection cutoff set too low). If the gel is excised from 20 nt to 50 nt instead of the recommended 25–35 nt, larger background fragments and truncated adaptations will be included[1][3].
+
+#### Alternative Consideration: Ribosome Inhibitor Artifact
+
+If the inhibitor used (e.g., cycloheximide) was not applied correctly (incorrect concentration, short treatment time, or timing issues), ribosomes may not arrest in a uniform state, leading to heterogeneous footprint populations. However, this would typically show as variable-length peaks rather than a systematic shift toward longer fragments[1].
+
+### Confirmatory Checks (Using Existing Data)
+
+1. **Length-Stratified Periodicity Analysis**: From the sequencing data, subset reads by length (e.g., 28–30 nt, 30–35 nt, >35 nt) and compute 3-nt periodicity for each subset. True monosomes should show strong periodicity in the 28–34 nt bin; if periodicity is stronger in shorter reads or absent in longer reads, this supports incomplete digestion or mixed-size products[14][24][54].
+
+2. **CDS Enrichment by Fragment Length**: Compute the fraction of reads mapping to CDS (vs. UTR/intergenic) as a function of fragment length. For canonical Ribo-seq, CDS enrichment should be high (>95%) for 28–34 nt reads; if enrichment drops for longer reads (>40 nt), this suggests longer fragments are non-specific contamination[14].
+
+3. **Fragment-Size Distribution Histogram**: Generate a histogram of observed read lengths from the sequencing data. If the distribution has a single tight peak (narrow, centered at 28–34 nt), digestion was likely adequate. If the distribution is broad or multi-modal (e.g., peaks at 30 nt, 50 nt, etc.), digestion or size selection was problematic[1][3][14].
+
+4. **Metagene Profile Around Start Codon**: If ORF coordinates are available, align all reads to a window around the annotated translation initiation site (e.g., −50 to +50 codons). Properly digested monosome footprints should show a sharp peak upstream of the start codon (reflecting ribosomes scanning or pausing just before AUG) and a sharp peak around the +1 codon. If the profile is diffuse or shows a trailing signal, larger/heterogeneous fragments are likely[14].
+
+### Proposed Protocol Fixes
+
+**Nuclease Digestion Optimization:**
+
+Revise the digestion step to include explicit enzyme-titration recommendations and strict environmental controls:
+
+> **RNase I Digestion (Optimized Protocol):**
+>
+> 1. **Enzyme Preparation**: Thaw RNase I (or equivalent nuclease) on ice immediately before use. Do not reuse; discard any aliquot after a single session.
+> 
+> 2. **Titration Study (One-Time Optimization per New Lot)**: When a new lot of RNase I is received, perform a small titration: incubate the same cell lysate (polysomal) with 250 U, 400 U, 550 U, and 700 U of RNase I under standard conditions (see below). Monitor polysome-to-monosome conversion by sucrose gradient ultracentrifugation or TapeStation (if performing on extracted RNA). Document the minimum enzyme concentration that efficiently converts polysomes to monosomes while preserving monosome integrity (few or no free 40S/60S subunits observed). Use this concentration for all subsequent runs with that lot[3].
+> 
+> 3. **Digestion Conditions**:
+>    - **Buffer Composition**: Polysome buffer (Tris–Cl 100 mM pH 8.0, KCl 40 mM, MgCl₂ 20 mM)
+>    - **Temperature**: 25 °C (do not exceed; high temperatures can degrade protected fragments or cause exonuclease activity)
+>    - **Incubation Time**: 1.5–2 hours (strict; do not extend without justification)
+>    - **RNase I Concentration**: [Use optimized concentration from titration; typically 400–700 U per 20 µg of total RNA in lysate]
+>    - **RNase Inhibitor**: After digestion, immediately add SUPERase•In (e.g., 10 µL of 20 U/µL per 400 µL reaction) to stop digestion[1][2].
+> 
+> 4. **No Over-Digestion**: Do not incubate longer or use higher enzyme concentrations in the hope of improving yield; this will fragment rRNA further and degrade protected footprints[13].
+
+**Size Selection Enforcement:**
+
+> **Library Size Selection:**
+>
+> 1. **Gel-Based Selection**: If using denaturing PAGE or agarose gel, excise the band range **22–35 nt** (to ensure capture of the majority of monosomal footprints; some variation in protection is normal)[3]. Mark the gel boundaries based on a ladder co-electrophoresed on the same gel.
+> 
+> 2. **Bead-Based Selection (if applicable)**: If using magnetic beads for size selection (e.g., SPRIselect), follow manufacturer guidance for the target size range. Typically, a ratio optimized for 20–40 nt selection is used; do not deviate from the specified ratio without re-validation[3].
+> 
+> 3. **Quality Control of Extracted/Selected Material**: Before cDNA library preparation, run a small aliquot of the size-selected protected fragments on a TapeStation or gel to confirm the bulk of material falls in the 25–34 nt range. If material is broader or shifted, repeat size selection or investigate digestion.
+
+### Validation & Prevention Plan
+
+**Pre-Sequencing Acceptance Criteria (Rigorous Fragment QC):**
+
+- **Fragment Length Distribution**: >85% of reads in the 28–34 nt range (post-alignment QC from FASTQ data)
+- **Periodicity Signal**: 3-nt periodicity detectable in the 28–34 nt subset (can be assessed via a simple Fourier analysis or frame-bias check at the P-site position modulo 3)
+- **CDS Enrichment**: >90% of 28–34 nt reads map to annotated CDS
+- **Metagene Profile**: Sharp peak within ±5 codons of annotated translation start site
+
+**Intermediate QC Checkpoints (Non-Deep-Sequencing):**
+
+- **Polysome Gradient Check** (Optional but Recommended): Perform a small-scale sucrose gradient centrifugation on a small aliquot of the digested lysate before extracting protected fragments. Visually confirm that polysomes are converted to monosomes with minimal free ribosomal subunits. Document the gradient image in the run log.
+- **Protected Fragment Gel**: After extraction, run a denaturing PAGE or TapeStation to confirm the protected-fragment population is tight (~28–34 nt, single band or narrow cluster). If material is broad, redo nuclease digestion with optimized enzyme concentration.
+
+**Operator Checklist:**
+
+- RNase I lot number and expiration date
+- Enzyme concentration used (units and volume)
+- Incubation temperature and exact duration (in minutes)
+- Time and method of RNase inhibitor addition (confirm immediate addition post-digestion)
+- Polysome gradient result (if performed; photograph or description)
+- Protected-fragment gel/trace result (photograph, with size markers visible)
+
+**Decision Gate (Before Commitment to Deep Sequencing):**
+
+- If protected-fragment distribution is broad (>40% of material >35 nt), re-optimize digestion with a higher enzyme concentration (from titration range) and repeat.
+- If first-pass sequencing shows weak periodicity (<0.7 ratio of frame-0 to other frames in the 28–34 nt subset), investigate digestion and re-assess with in-house gel/gradient data before committing to a second round of deep sequencing.
+
+## Incident D: UMI Deduplication Collapse and Apparent Low Diversity
+
+### Problem Summary and Observations
+
+After UMI extraction from raw reads, the observed UMI population is extremely small, with a heavily skewed histogram concentrated in a tiny set of unique sequences. Deduplication collapses the dataset far more severely than expected based on input material, and downstream quantification becomes noisy and unstable. This suggests a fundamental failure in UMI encoding or extraction.
+
+### Root-Cause Analysis
+
+#### Most Likely: Incorrect UMI Extraction
+
+The primary culprit is **incorrect identification and extraction of the UMI from the read**. This can occur due to:
+
+1. **Extracting the Wrong Region**: The protocol.md specifies that UMIs are encoded in a particular read position (e.g., the first 8 bases of Read 2 after the ligation product). If the extraction script/tool is given the wrong position or the wrong read (e.g., extracting from Read 1 instead of Read 2, or extracting the constant adapter sequence instead of the variable Ns), the result will be minimal or zero sequence variation[9][15].
+
+2. **Parsing Error in Regex or Index**: Tools like `umi_tools extract` rely on explicit regex patterns or read structure specifications[9][18]. If the pattern does not accurately match the protocol's design (e.g., if the pattern expects NNNNNNNNN but the actual adapter is NNNNNNNNNXXX where XXX is constant), the tool may capture the wrong bases or fail entirely.
+
+3. **Oligo Synthesis Defect**: Less commonly, if the adapter oligo was synthesized with the "N" positions (intended as degenerate/random) all synthesized as a single nucleotide (e.g., all As) or if the degeneracy was not applied, the UMIs will be nearly identical[8]. This would be visible in the incoming oligo documentation if specs were not carefully checked.
+
+#### Confirmatory Evidence from Data
+
+The extremely concentrated UMI histogram is the key diagnostic. If a proper UMI extraction were occurring, the entropy at each UMI position should be near-maximal (entropy ≈ 2 bits per position for a 4-letter alphabet, or ~0.5 bits per nucleotide position; a 6–10 nt UMI should have entropy ~3–5 bits total, corresponding to ~8–32 unique expected UMIs in a modest-sized dataset). If the observed UMI histogram is dominated by a single or very-small set of sequences, this strongly suggests one of the above failure modes.
+
+### Confirmatory Checks (Using Existing Data)
+
+1. **Direct UMI Sequence Inspection**: Extract the first N reads (e.g., 1000) from the raw FASTQ and manually inspect the read sequence at the position where the UMI should be according to protocol.md. Check whether this region shows variation (adenine/thymine/guanine/cytosine mixed at each position) or is dominated by a single or few constant sequences.
+
+2. **Base Composition at Each UMI Position**: For all extracted UMI sequences, compute the fraction of A, T, G, C at each position. For true random UMIs, the distribution should be ~25% each. If one position is >90% a single base, or if all positions are identical (e.g., all sequences are identical), the UMI extraction is wrong[9].
+
+3. **UMI Uniqueness vs. Dataset Size**: Plot the cumulative number of unique UMIs observed as a function of read count (saturation curve). For a properly designed UMI system, uniqueness should grow steadily; saturation at a tiny number (e.g., 10–100 unique UMIs for thousands of reads) indicates a problem[9].
+
+4. **Compare Observed UMI Sequence to Protocol & Adapter Spec**: If the protocol.md specifies an adapter sequence with N positions, manually extract the first few reads and compare the observed "UMI" region to the adapter sequence. If the observed UMI matches the expected constant adapter sequence exactly, the extraction tool is capturing the wrong region.
+
+5. **Alternative Extraction Test**: Using the raw reads, try manual extraction with a different regex pattern or read position, and recompute UMI statistics. If diversity improves with a shifted pattern, this confirms a positional error in the original extraction.
+
+### Proposed Fixes
+
+#### Bioinformatic Fixes
+
+**UMI Extraction Validation Protocol:**
+
+> **UMI Extraction and Sanity Check:**
+>
+> 1. **Specification Clarification in Protocol.md**: The protocol must state, explicitly and unambiguously:
+>    - Which read(s) contain the UMI (Read 1, Read 2, or both)
+>    - The exact 0-based or 1-based position range (e.g., "bases 0–7 of Read 2" or "first 8 nucleotides of Read 1 after the constant 5' linker")
+>    - The expected constant sequence(s) flanking the UMI, if any
+>    - Expected UMI length
+> 
+> 2. **umi_tools Extract Configuration**:
+>    ```
+>    umi_tools extract \
+>      --stdin=reads.fastq.gz \
+>      --bc-pattern='[READ_SPEC]' \
+>      --extract-method=regex \
+>      --log=extract.log \
+>      > reads_umi_extracted.fastq.gz
+>    ```
+>    where `[READ_SPEC]` is an explicit regex matching the protocol (e.g., `(?P<umi_1>[ATCG]{8})` if the first 8 bases are the UMI).
+> 
+> 3. **Post-Extraction Validation Report** (to be generated and inspected before deduplication):
+>    - Unique UMI count (total and cumulative by read count)
+>    - Per-position base composition (A, T, G, C fraction at each UMI position)
+>    - Entropy at each position (should be close to log₂(4) = 2 bits for true randomness)
+>    - Top 10 most-frequent UMI sequences and their counts
+>    - Histogram of UMI frequency distribution (should be roughly exponential if true random)
+> 
+> 4. **Acceptance Criteria**:
+>    - Unique UMI count should be >10% of total read count (for a 10-nt UMI, expect ~1 million possible UMIs; if only 100 reads are present, expect ~80–100 unique UMIs assuming random sampling)
+>    - Per-position entropy >1.8 bits at all UMI positions (indicating near-uniform base distribution)
+>    - No single UMI sequence accounts for >5% of reads
+>    - If any criterion is failed, investigate extraction regex, UMI position, and read structure before proceeding to deduplication[9]
+
+#### Wet-Lab / Procurement Fixes
+
+**Adapter/Oligo Specification & Incoming QC:**
+
+> **Incoming Oligo/Adapter Verification (for Custom Oligos):**
+>
+> 1. **Upon Receipt**: Check the shipment documentation (mass, purification grade, modifications) against the original order.
+> 
+> 2. **Specify Degenerate Positions Explicitly**: In future orders, explicitly state in the order comments:
+>    - "Positions X–Y are **degenerate** (N = A/T/G/C, not a single nucleotide)"
+>    - Request that the synthesis report or QC documentation confirms degeneracy synthesis (e.g., copy number/yield consistent with a pool vs. a single product)
+> 
+> 3. **Optional Incoming Oligo Gel/MS Check**: For critical custom oligos, perform a simple non-denaturing PAGE to confirm the oligo size and, if available, request high-resolution mass spectrometry from the vendor to verify the exact composition (especially for degenerate pools, which should show a characteristic broad mass-distribution peak rather than a sharp single peak).
+> 
+> 4. **Test Ligation** (Recommendation): Before using a new shipment of adapter oligos for an entire experiment, perform a small test ligation (20–50 ng of in-house RNA + adapter + T4 RNA ligase 2 or similar) to confirm the ligation product shifts as expected on a denaturing gel. If ligation fails or produces unexpected sizes, do not use the oligos until the issue is resolved.
+
+### Validation & Prevention Plan
+
+**Standardized UMI QC Report (Pre-Deduplication Gate):**
+
+Every Ribo-seq run must generate and review a UMI validation report containing:
+
+- Total reads processed
+- Unique UMI count
+- Fraction of reads with extracted UMI (should be ≈100% if structure is correct)
+- Per-position entropy and base composition (presented as a logo or bar chart)
+- Top-10 UMI sequences and their abundances (as a ranked table)
+- Decision: **Pass** (diversity metrics meet criteria) or **Fail** (investigate extraction before deduplication)
+
+This report should be reviewed and signed off by the experimenter or a supervisor before proceeding to deduplication[9].
+
+**Adapter Design Checklist (For Protocol Revisions):**
+
+When updating adapters or UMI specifications:
+
+- Confirm that degenerate positions (Ns) are explicitly documented
+- Verify that UMI extraction tools are configured with a regex/pattern matching the protocol
+- Perform a small proof-of-concept ligation and sequencing (e.g., 100 reads) to confirm UMI structure is correct before committing to full-scale experiments
+
+## Incident E: Reproducible Ligation Failure and Adapter/Oligo Specification Incompatibility
+
+### Problem Summary and Observations
+
+Ligation reactions consistently fail to produce the expected shifted band on denaturing gels. The final libraries are dominated by short artifacts and primer-dimer-like products, with expected library peaks nearly absent. Enzyme replacement does not rescue the phenotype (ruling out denatured/inactive enzyme), and the failure is reproducible across multiple independent repeats. Critically, evidence points to a recent change in oligo supplier or batch, with differences in molecule type (RNA vs. DNA), terminal modifications, or purification grade.
+
+### Root-Cause Analysis
+
+The combination of reproducible ligation failure, inability to rescue by enzyme replacement, and association with new oligo procurement strongly implicates **incompatibility between the new adapter oligo and the ligation chemistry specified in the protocol**. Likely scenarios include:
+
+#### Scenario 1: Wrong Molecule Type (DNA vs. RNA Adapter)
+
+If the protocol specifies an RNA 3' adapter for ligation to RNA (using T4 RNA ligase 2), but the new shipment is a DNA oligo, the reaction will fail or proceed with extremely low efficiency. DNA and RNA have different sugar conformations (2'-deoxyribose vs. ribose), and T4 RNA ligase 2 is specifically evolved for RNA substrates. Additionally, if the DNA form lacks certain stereoelectronic features, the enzymatic pocket may not accommodate it properly[38].
+
+#### Scenario 2: Missing or Altered Terminal Modifications
+
+T4 RNA ligase 2 typically requires a 5'-phosphate on one substrate and a 3'-OH on the other. If the new oligo stock lacks a 5'-phosphate, or has a 3' blocking group (e.g., 3'-amino linker, 3'-phosphate, or 3'-cap) instead of a free 3'-OH, ligation will fail[8][38][11]. Similarly, if the intended 5' adenylation is missing (some protocols use pre-adenylated adapters to avoid ATP requirement and reduce self-ligation), the adaptation to the ligation will be reduced[8].
+
+#### Scenario 3: Truncation or Sequence Error from Low-Grade Synthesis
+
+If the new batch was synthesized at lower purification (e.g., desalted instead of HPLC-purified), truncated by-products may be present in substantial amounts[43][46]. These truncated species (missing critical 5' or 3' bases) cannot ligate properly, and may actually compete with the correct oligo, reducing overall ligation efficiency[11].
+
+#### Scenario 4: Sequence Errors or Wrong Orientation
+
+A transcription error (e.g., reversal of sequence, or use of a backup sequence accidentally) could render the oligo incompatible with the targeted mRNA or the ligase active site.
+
+### Confirmatory Checks (Using Existing Data)
+
+1. **Gel-Shift Inspection**: Compare denaturing gel images from recent failed runs to historical successful runs. In a successful ligation, expect to see:
+     - Input 3' adapter (~20–30 nt, small band at bottom)
+     - Input 5' adapter (~20–30 nt, if ligation product is circular, may disappear; otherwise, a second small band)
+     - Ligation product (input mRNA footprint + adapters = ~60–80 nt or more, depending on composition; larger and shifted relative to input)
+   
+   In failed runs, if only the small input bands are present and no larger shifted band, ligation did not occur[11].
+
+2. **Read-Level Adapter Prefix Inspection**: From the sequencing FASTQ, extract the first 30 bp from all reads and perform a frequency count of exact sequences or k-mer motifs. The protocol specifies an expected linker/adapter prefix at the 5' end of inserts post-ligation. If this prefix is nearly absent (<1% of reads) but other primer-like sequences are dominant (e.g., the original RT primer sequence, or a portion of the adapter), this indicates ligation failed and downstream PCR amplified primer-dimers or artifacts instead[1][11].
+
+3. **Oligo Specification Comparison**: Retrieve the spec sheets and order documentation for the old (successful) and new (failed) oligo shipments. Compare:
+     - Molecule type (RNA vs. DNA)
+     - 5' modification (phosphate, adenylation, triphosphate, or none)
+     - 3' modification (OH, amino linker, phosphate, or cap)
+     - Purification method (desalted, PAGE, HPLC)
+     - Sequence (exact match or any differences)
+   
+   Any discrepancy in molecule type, terminal modifications, or purification is a red flag[8][43][46].
+
+4. **Test Ligation with Historical Oligo**: If any old adapter stock is retained, perform a small test ligation using the same protocol with the old oligo. If this succeeds (gel shift visible), while the new oligo fails, the incompatibility is confirmed.
+
+### Proposed Fixes
+
+#### Wet-Lab / Procurement Fixes
+
+**Revised Adapter/Oligo Specification Language in Protocol.md:**
+
+> **Adapter Oligo Specification and Ordering:**
+>
+> 1. **Required Specification for Custom Synthesis**:
+>    - **Molecule Type**: [Specify explicitly] "RNA, not DNA"
+>    - **5' Terminus**: [Specify one of] "5' monophosphate (not triphosphate)", "5' pre-adenylated (5'-App)", or "5' triphosphate" [choose based on ligase compatibility]
+>    - **3' Terminus**: [Specify one of] "3' hydroxyl (3'-OH)", "3' amino linker (3'-amino)", "no 3' modification" [choose based on ligase requirement and self-ligation avoidance goal]
+>    - **Sequence**: [Exact sequence, including any degenerate positions; example: 5'-CGAGATAGGC**NNNNNNN**AGATC-3']
+>    - **Purification Grade**: [Specify] "High-Performance Liquid Chromatography (HPLC) purification" [not desalted, to ensure >90% full-length synthesis]
+>    - **Length**: [State in nucleotides, e.g., "28 nt"]
+> 
+> 2. **Incoming Oligo Verification Checklist** (upon receipt, before use):
+>    - Mass and concentration match the order and are reasonable for the quoted amount
+>    - Purification method on spec sheet matches the order (HPLC, not desalted)
+>    - Sequence on certificate matches the order (verify exact sequence by visual inspection or automated parsing if using electronic COAs)
+>    - Molecule type is confirmed (usually stated in the product description)
+>    - Terminal modifications are as ordered (check 5' phosphate/adenylation and 3' modification columns)
+>    - If any discrepancy exists, contact the vendor immediately and do not use the oligo
+> 
+> 3. **Test Ligation (Recommended for All New Batches)**:
+>    ```
+>    Optional but Highly Recommended:
+>    Perform a small test ligation with ~50 ng of a standard in-house RNA 
+>    (or synthetic RNA of known size) using the new adapter batch and standard 
+>    ligase (T4 RNA ligase 2 or as per protocol). Incubate under standard 
+>    conditions and run a denaturing PAGE gel. Confirm a gel shift (product is 
+>    ~30-50 nt larger than input). If gel shift is not observed, investigate 
+>    the oligo or ligation conditions before using in large-scale experiments.
+>    ```
+
+#### Bioinformatic Fixes
+
+**Adapter Prefix Validation Report:**
+
+> **Read-Level Adapter Prefix Inspection (Post-Sequencing QC):**
+>
+> After sequencing, inspect the first 25–30 bases of all reads (or a large random sample, e.g., 10,000 reads). Extract all exact 15-nt k-mers from the read prefix and compute their frequencies. For a successful Ribo-seq library:
+> - The expected **linker sequence** specified in the protocol should appear in the read prefix at a frequency >50% of reads (or >90% if the linker is present in all inserts)
+> - No other single sequence should dominate
+> - If a different sequence (e.g., the RT primer, or a partial adapter) dominates, ligation likely failed
+>
+> Include this as a mandatory QC report before committing data to downstream analysis.
+
+### Validation & Prevention Plan
+
+**Mandatory Pre-Experiment Oligo Verification & Test Ligation Gate:**
+
+1. **Upon Oligo Receipt**:
+   - Inspect spec sheet for molecule type, terminal modifications, and purification
+   - Create a checklist comparing spec to the original order; flag any differences for immediate clarification with the vendor
+   - Do not open or use the oligo until the checklist is complete and approved
+
+2. **Test Ligation** (if not previously validated for this lot/sequence):
+   - Perform a small test ligation with the new batch and standard RNA substrate
+   - Run denaturing PAGE gel and confirm gel shift to the expected size
+   - Photograph the gel and retain in the lab records
+   - Decision: If gel shift is observed and size is correct, proceed to experimental scale. If gel shift is absent or incorrect, investigate oligo and ligase before proceeding.
+
+3. **First-Sequencing Adapter Prefix Validation**:
+   - After completing the first Ribo-seq run with a new oligo batch, perform shallow sequencing or a small pilot (as few as 1 million reads) on a benchtop sequencer (e.g., Illumina iSeq 100)[2][14]
+   - Generate the adapter-prefix k-mer frequency report
+   - If the expected linker prefix is present in >50% of reads, proceed to deep sequencing
+   - If the expected linker prefix is rare or absent, halt and troubleshoot (investigate oligo, ligation, or adapter structure) before committing to deep sequencing
+
+**Documentation & Approval Chain:**
+
+- All oligo orders must include explicit terminal modification and molecule-type specifications
+- Upon receipt, a designated individual (quality control or a senior experimenter) must complete the oligo verification checklist before the oligo is released for use
+- Test-ligation gel results must be documented and retained in the run log
+- For any discrepancies or new oligo batches, the principal investigator or senior staff member must approve the oligo before use in experiments
+
+## Incident 1-6: Pilot Single-Transcript Ribo-Seq Data Processing and QC
+
+### Overview and Methodology
+
+To demonstrate Ribo-seq quality control and interpretation in a realistic (though simplified) setting, we process a provided pilot FASTQ dataset (reads.fastq.gz) against a single-transcript reference (reference.fa). The goal is to generate per-position footprint count arrays (raw and UMI-deduplicated), visualize the distribution of 5' alignment starts, and summarize key QC metrics in an HTML report suitable for assessing data quality.
+
+### Preprocessing and Adapter Trimming
+
+**Read Input Characteristics:**
+
+Assuming the provided reads.fastq.gz contains 50-nt single-end reads, we first assess raw quality using FastQC (or fastp). Per the protocol.md, the reads should follow the structure: [adapter prefix] + [UMI] + [insert (protected fragment + cDNA synthesis product)].
+
+**Adapter Trimming (cutadapt):**
+
+Based on the protocol's specification of a 3' adapter sequence (to be extracted from protocol.md for the actual run; for this example, we denote it as AGATCGGAA...), we trim using:
+
+```bash
+cutadapt \
+  -a AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC \
+  -m 15 \
+  -q 20 \
+  --discard-untrimmed \
+  -o reads_trimmed.fastq.gz \
+  reads.fastq.gz > cutadapt.log 2>&1
+```
+
+This removes reads shorter than 15 nt after trimming and trims low-quality 3' ends (Phred quality <20). The output reads_trimmed.fastq.gz should contain inserts free of adapter sequence, with lengths typically in the range of 25–40 nt (accounting for protected fragment ~28–34 nt plus any remaining linker/barcode).
+
+### UMI Extraction and Validation
+
+**UMI Extraction (umi_tools):**
+
+Per protocol.md, if the first 8 bases of each read contain a UMI (random Ns), we extract using:
+
+```bash
+umi_tools extract \
+  --stdin reads_trimmed.fastq.gz \
+  --bc-pattern='(?P<umi_1>[ATCG]{8})' \
+  --extract-method=regex \
+  --log=umi_extract.log \
+  > reads_umi_extracted.fastq.gz
+```
+
+The UMI is appended to the read header, e.g., `@READ_ID_AGTCGATC`, allowing later deduplication based on (alignment position, UMI) pairs.
+
+**UMI Validation Report:**
+
+We then generate a validation report:
+
+```python
+# Pseudocode for UMI validation
+import gzip, collections
+
+umi_counts = collections.Counter()
+per_pos_bases = collections.defaultdict(lambda: {'A': 0, 'T': 0, 'G': 0, 'C': 0})
+
+with gzip.open('reads_umi_extracted.fastq.gz', 'rt') as f:
+    for i, line in enumerate(f):
+        if i % 4 == 0:  # Header
+            umi = line.split('_')[-1].strip()  # Assuming UMI is last underscore-delimited field
+            umi_counts[umi] += 1
+            for pos, base in enumerate(umi):
+                per_pos_bases[pos][base] += 1
+
+unique_umis = len(umi_counts)
+total_reads = sum(umi_counts.values())
+top_umi_fraction = umi_counts.most_common(1)[1] / total_reads if umi_counts else 0
+
+print(f"Unique UMIs: {unique_umis}")
+print(f"Total reads: {total_reads}")
+print(f"Top UMI fraction: {top_umi_fraction:.3f}")
+print("Per-position base composition:")
+for pos in sorted(per_pos_bases.keys()):
+    bases = per_pos_bases[pos]
+    entropy = sum([-p/total_reads * math.log2(p/total_reads + 1e-10) 
+                   for p in bases.values() if p > 0])
+    print(f"  Position {pos}: A={bases['A']}, T={bases['T']}, G={bases['G']}, C={bases['C']}, entropy={entropy:.2f} bits")
+```
+
+**Expected Pass Criteria:**
+
+- Unique UMIs: >10% of total reads (for 50-nt reads with 8-nt UMIs, expect ~0.1–1M possible UMIs; saturation depends on library complexity)
+- Top UMI fraction: <5% (no single UMI dominates)
+- Per-position entropy: >1.5 bits at all positions (indicating reasonable base diversity)
+
+### Alignment to Single Transcript
+
+**Reference Genome / Transcriptome:**
+
+Align the UMI-extracted reads to the provided reference.fa using bowtie2 (end-to-end mode for high sensitivity to small Ribo-seq fragments):
+
+```bash
+bowtie2-build reference.fa reference_idx
+bowtie2 \
+  -x reference_idx \
+  -U reads_umi_extracted.fastq.gz \
+  -S reads_aligned.sam \
+  --local \
+  --very-sensitive-local \
+  -k 1
+samtools view -b -S reads_aligned.sam | samtools sort - -o reads_aligned.sorted.bam
+samtools index reads_aligned.sorted.bam
+```
+
+We use `--local` alignment to allow soft-clipping at read termini (useful if adapter or low-quality bases remain), and `-k 1` to retain only the best alignment per read. The output is a sorted, indexed BAM file suitable for per-position counting.
+
+### Per-Position Footprint Counting
+
+**Raw (Non-Deduplicated) Counts:**
+
+For each read in the BAM, extract the 5' alignment start position (1-based transcript coordinate, by convention). Aggregate counts per position:
+
+```python
+import pysam
+
+transcript_length = len(ref_seq)  # From reference.fa
+counts_raw =  * transcript_length
+
+with pysam.AlignmentFile('reads_aligned.sorted.bam', 'rb') as bam:
+    for read in bam:
+        if not read.is_unmapped and not read.is_secondary:
+            # 5' start position (0-based in pysam, convert to 1-based)
+            start_pos = read.reference_start + 1
+            if 0 <= start_pos < transcript_length:
+                counts_raw[start_pos - 1] += 1
+
+# Write counts_raw.csv
+with open('counts_raw.csv', 'w') as f:
+    f.write('position,count_raw\n')
+    for pos in range(1, transcript_length + 1):
+        f.write(f'{pos},{counts_raw[pos - 1]}\n')
+```
+
+**Deduplicated Counts (UMI-Based):**
+
+Using umi_tools dedup, we retain only a single representative read per (alignment position, UMI) pair:
+
+```bash
+umi_tools dedup \
+  --stdin reads_aligned.sorted.bam \
+  --method=directional \
+  --output-stats=dedup_stats.txt \
+  -o reads_aligned_dedup.bam
+```
+
+Then regenerate per-position counts from the deduplicated BAM, producing counts_dedup.csv with the same structure.
+
+### Visualization and HTML Report
+
+**Histogram of 5' Start Positions:**
+
+Generate a side-by-side histogram (raw vs. deduplicated):
+
+```python
+import matplotlib.pyplot as plt
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+# Raw
+axes.bar(range(1, len(counts_raw) + 1), counts_raw, color='steelblue', alpha=0.7)
+axes.set_title('5\' Alignment Starts (Raw)', fontsize=12)
+axes.set_xlabel('Transcript Position')
+axes.set_ylabel('Read Count')
+axes.grid(axis='y', alpha=0.3)
+
+# Deduplicated
+axes[1].bar(range(1, len(counts_dedup) + 1), counts_dedup, color='coral', alpha=0.7)
+axes[1].set_title('5\' Alignment Starts (UMI-Deduplicated)', fontsize=12)
+axes[1].set_xlabel('Transcript Position')
+axes[1].set_ylabel('Read Count')
+axes[1].grid(axis='y', alpha=0.3)
+
+plt.tight_layout()
+plt.savefig('5_start_histogram.png', dpi=150, bbox_inches='tight')
+```
+
+**HTML Report Template:**
+
+An HTML report summarizing QC metrics and data interpretation:
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ribo-Seq QC Report - Single Transcript Pilot</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
+        h1, h2 { color: #333; }
+        .section { background-color: white; padding: 15px; margin: 10px 0; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #4CAF50; color: white; }
+        img { max-width: 100%; height: auto; margin: 10px 0; }
+        .pass { color: green; font-weight: bold; }
+        .warn { color: orange; font-weight: bold; }
+        .fail { color: red; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Ribo-Seq Quality Control Report</h1>
+    <p><strong>Date:</strong> [INSERT DATE]; <strong>Sample:</strong> [INSERT SAMPLE NAME]</p>
+
+    <div class="section">
+        <h2>1. Read Preprocessing & Adapter Trimming</h2>
+        <table>
+            <tr><th>Metric</th><th>Value</th><th>Target</th><th>Status</th></tr>
+            <tr><td>Raw reads (input)</td><td>[N_RAW]</td><td>N/A</td><td>[N/A]</td></tr>
+            <tr><td>Reads after quality/adapter trim</td><td>[N_TRIMMED]</td><td>&gt;80% of raw</td><td>[STATUS]</td></tr>
+            <tr><td>Median read length (post-trim)</td><td>[LEN_MEDIAN] nt</td><td>25–40 nt</td><td>[STATUS]</td></tr>
+            <tr><td>Adapter contamination (post-trim)</td><td>[ADAPTER_FREQ]%</td><td>&lt;1%</td><td>[STATUS]</td></tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>2. UMI Extraction & Diversity</h2>
+        <table>
+            <tr><th>Metric</th><th>Value</th><th>Target</th><th>Status</th></tr>
+            <tr><td>Unique UMIs</td><td>[N_UNIQUE_UMIS]</td><td>&gt;10% of reads</td><td>[STATUS]</td></tr>
+            <tr><td>Fraction of top UMI</td><td>[TOP_UMI_FRAC]%</td><td>&lt;5%</td><td>[STATUS]</td></tr>
+            <tr><td>Per-position entropy (min)</td><td>[MIN_ENTROPY] bits</td><td>&gt;1.5 bits</td><td>[STATUS]</td></tr>
+        </table>
+        <p><strong>Interpretation:</strong> If UMI diversity is low (&lt;10% unique), check UMI extraction parameters and adapter design.</p>
+    </div>
+
+    <div class="section">
+        <h2>3. Alignment & Mapping Statistics</h2>
+        <table>
+            <tr><th>Metric</th><th>Value</th><th>Target</th><th>Status</th></tr>
+            <tr><td>Reads mapped (uniquely)</td><td>[N_MAPPED]</td><td>&gt;80%</td><td>[STATUS]</td></tr>
+            <tr><td>Mapping rate</td><td>[MAP_RATE]%</td><td>&gt;80%</td><td>[STATUS]</td></tr>
+            <tr><td>Average coverage (transcript)</td><td>[AVG_COV] reads/position</td><td>&gt;5×</td><td>[STATUS]</td></tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>4. Read Length Distribution</h2>
+        <p>Expected protected fragment sizes are typically 28–34 nt. Broader distributions may indicate incomplete nuclease digestion or size-selection issues.</p>
+        <img src="read_length_dist.png" alt="Read length distribution">
+    </div>
+
+    <div class="section">
+        <h2>5. Per-Position Footprint Counts (Raw vs. Deduplicated)</h2>
+        <img src="5_start_histogram.png" alt="5' start histogram">
+        <p><strong>Raw Counts:</strong> Total reads mapped per transcript position (before UMI deduplication).</p>
+        <p><strong>Deduplicated Counts:</strong> Unique molecules per position (after UMI-based deduplication).</p>
+    </div>
+
+    <div class="section">
+        <h2>6. 3-nt Periodicity & Frame Analysis (if ORF is available)</h2>
+        <p>Ribo-seq footprints show strong 3-nt periodicity due to codon-position-specific ribosome dynamics. We stratify reads by the reading frame of their 5' alignment position modulo 3 within the inferred CDS.</p>
+        <table>
+            <tr><th>Frame</th><th>Count (Raw)</th><th>Count (Dedup)</th><th>Fraction</th></tr>
+            <tr><td>Frame 0 (P-site)</td><td>[F0_RAW]</td><td>[F0_DEDUP]</td><td>[F0_FRAC]</td></tr>
+            <tr><td>Frame 1</td><td>[F1_RAW]</td><td>[F1_DEDUP]</td><td>[F1_FRAC]</td></tr>
+            <tr><td>Frame 2</td><td>[F2_RAW]</td><td>[F2_DEDUP]</td><td>[F2_FRAC]</td></tr>
+        </table>
+        <p><strong>Expected:</strong> Frame 0 (P-site) should comprise &gt;50% of total reads for high-quality Ribo-seq. If all frames are roughly equal (~33% each), the signal is noisy or absent.</p>
+    </div>
+
+    <div class="section">
+        <h2>7. Overall Interpretation & Recommendations</h2>
+        <h3>Summary of Observations:</h3>
+        <ul>
+            <li>[OBSERVATION 1: e.g., "Mapping rate is acceptable at 88%, indicating good library quality."]</li>
+            <li>[OBSERVATION 2: e.g., "3-nt periodicity is present with 62% of reads in Frame 0, consistent with monosomal footprints."]</li>
+            <li>[OBSERVATION 3: e.g., "UMI diversity is reasonable; top UMI accounts for only 1.2% of reads."]</li>
+        </ul>
+
+        <h3>Biological Significance:</h3>
+        <p>
+            [If strong periodicity and CDS-enrichment are present: "The data show canonical Ribo-seq signatures consistent with active translation. Peaks in per-position counts may indicate translation initiation sites, stalled ribosomes, or high-traffic regions."]
+        </p>
+        <p>
+            [If periodicity is weak: "The 3-nt periodicity is weak or absent, suggesting either (i) incomplete nuclease digestion, (ii) mixed footprint sizes from disomes or partially digested RNPs, (iii) contamination with non-translating RNA, or (iv) true lack of translation in the sample."]
+        </p>
+
+        <h3>Next Steps / Follow-Up Checks:</h3>
+        <ol>
+            <li><strong>Verify UMI Extraction:</strong> Manually inspect the first 100 reads from the original FASTQ to confirm the UMI region (first 8 bases, by protocol) contains expected base variation. If UMI diversity is unexpectedly low, check the regex pattern and extraction tool configuration.</li>
+            <li><strong>Stratify Periodicity by Read Length:</strong> Recompute 3-nt periodicity separately for reads of length 28–30 nt, 30–32 nt, and 32–35 nt. If periodicity emerges only in a subset of lengths, this may indicate length-dependent protection or digestion artifacts.</li>
+            <li><strong>Confirm Expected Adapter Prefix Frequency:</strong> Extract the first 15 bp from all reads and compute the frequency of the expected linker/adapter prefix specified in protocol.md. If this prefix is present in &gt;50% of reads, adapter ligation was successful. If rare (&lt;10%), investigate ligation or re-check the adapter sequence in the protocol.</li>
+            <li><strong>Inspect Mismatch and Soft-Clip Patterns:</strong> Examine the CIGAR strings and mismatch profiles of reads mapping to repetitive regions or regions with known secondary structure. Systematic soft-clipping or mis-alignment may indicate structure-mediated artifacts or true biological signal (e.g., ribosome collision sites).</li>
+        </ol>
+    </div>
+
+    <div class="section">
+        <h2>Data Availability</h2>
+        <p>Raw counts (per transcript position):</p>
+        <ul>
+            <li><strong>counts_raw.csv:</strong> All reads, raw counts by position.</li>
+            <li><strong>counts_dedup.csv:</strong> UMI-deduplicated counts by position.</li>
+        </ul>
+    </div>
+
+</body>
+</html>
+```
+
+### Interpretation of Pilot Data
+
+For the provided dataset, we expect one of the following scenarios:
+
+**Scenario 1 (High-Quality Ribo-Seq Signal):**
+
+- Mapping rate >85%, with clear peaks in per-position counts at specific positions
+- 3-nt periodicity with >50% of reads in Frame 0 (assuming a known ORF and correct P-site offset)
+- Minimal reduction upon UMI deduplication (suggesting low PCR duplication), e.g., raw-to-dedup ratio 1.5–3×
+- Interpretation: Data support canonical Ribo-seq. Peaks may reflect translation initiation, stalling sites, or high-demand codons. Proceed to downstream biological interpretation[1][4][14].
+
+**Scenario 2 (Weak or Absent Periodicity):**
+
+- Mapping rate acceptable, but 3-nt periodicity is weak or frames are roughly equal (~33% each)
+- Read length distribution may be broader than expected (>40 nt material present)
+- Interpretation: Likely incomplete nuclease digestion, size-selection issues, or contamination (as in Incident C). Revisit wet-lab optimization[3][13].
+
+**Scenario 3 (Low UMI Diversity / Over-Collapsing Upon Deduplication):**
+
+- Raw read count is substantial, but unique UMIs are few, and deduplication collapses reads severely (e.g., raw-to-dedup ratio >10×)
+- Interpretation: UMI extraction or design failure (as in Incident D). Inspect UMI sequences directly and verify extraction regex[9].
+
+**Scenario 4 (Adapter Contamination / Ligation Failure):**
+
+- Expected linker prefix is rare; instead, early read bases are dominated by primer-like sequences or constant adapter motifs
+- Library peak is weak; final QC shows elevated baseline
+- Interpretation: Ligation failure, likely due to adapter incompatibility (as in Incident E). Re-check oligo specs and perform test ligation[11].
+
+### Expected Data Outputs
+
+For the pilot dataset, we generate:
+
+1. **counts_raw.csv** – Tab or comma-separated, with columns: position (1–transcript_length), count_raw
+2. **counts_dedup.csv** – Same structure, with count_dedup
+3. **5_start_histogram.png** – Bar plot showing raw vs. dedup counts across the transcript
+4. **ribo_qc_report.html** – Comprehensive HTML report with embedded metrics and images (as templated above)
+5. **Interpretation Document** – Written summary of observations, biological plausibility, and recommended follow-up checks (as outlined in "Next Steps" above)
+
+## Synthesis and Broader Recommendations
+
+### Common Threads Across Incidents
+
+Several themes emerge from analyzing these five incident classes:
+
+1. **Carryover of Extraction Buffers**: Incidents A and B both trace to incomplete removal of ethanol or chaotropic salts during bead-based purification, manifesting as PCR inhibition, low A260/230, and variable run-to-run performance. The fix is explicit air-dry guidance and a post-cleanup QC gate.
+
+2. **Ambiguous or Subjective Protocol Language**: Incidents A and B also highlight the risk of relying on subjective visual cues (e.g., "air-dry briefly," "matte pellet") without objective time windows or environmental controls. Revision to explicit durations, visual confirmation, and operator checklists reduces variance.
+
+3. **Incomplete Optimization of Enzymatic Steps**: Incident C reveals under-optimized nuclease digestion due to lack of enzyme-titration guidance and minimal monitoring of polysome-to-monosome conversion. Adding explicit titration studies and intermediate QC (polysome gradient, protected-fragment gel) prevents this failure mode.
+
+4. **Adapter/Oligo Specification and Procurement Gaps**: Incidents D and E both involve failures in the design or specification of critical DNA/RNA oligos (UMI structure, terminal modifications). These are largely preventable through explicit procurement language, incoming QC checklists, and test-ligation/sequencing gates.
+
+5. **Lack of Standardized QC Checkpoints**: Across all incidents, the absence of mandatory intermediate QC (fragment length distribution, UMI diversity report, adapter-prefix frequency check) allows failures to propagate downstream, wasting sequencing resources. Adding QC gates before deep sequencing and acceptance criteria for each gate substantially improves success rates.
+
+### Implementation Roadmap
+
+**Phase 1: Protocol Documentation Revision**
+
+- Incorporate explicit, objective guidance for all bead-cleanup steps (drying time, visual cues, secondary aspiration)
+- Rewrite nuclease-digestion section with enzyme-titration recommendations and buffer specifications
+- Revise adapter/oligo ordering template with molecule-type, terminal-modification, and purification-grade mandates
+- Add UMI extraction validation and acceptance-criteria sections to the bioinformatics workflow
+
+**Phase 2: Standard Operating Procedures (SOPs) and Checklists**
+
+- Create operator checklists for bead cleanup (air-dry duration, pellet appearance, ethanol removal)
+- Establish enzymatic-step checklists (RNase I lot, units, incubation time, RNase inhibitor addition)
+- Develop adapter-oligo incoming-QC checklist (spec verification, test ligation, gel shift confirmation)
+
+**Phase 3: Mandatory QC Gates and Decision Trees**
+
+- Implement a post-cleanup QC gate: A260/230 ratio ≥1.8, TapeStation baseline acceptable
+- Add a pre-PCR gate: UMI diversity report with acceptance criteria
+- Implement a pre-deep-sequencing gate: shallow-sequencing QC (adapter-prefix frequency, periodicity assessment, if possible)
+
+**Phase 4: Positive-Control Amplification and Process Monitoring**
+
+- Prepare standard positive-control libraries for use in PCR validation
+- Include a positive-control amplification in every sequencing run to detect batch-level issues
+- Log all runs with operator name, date, key protocol timings, and QC measurements for retrospective analysis
+
+**Phase 5: Training and Competency Certification**
+
+- Mandate hands-on training and supervised practice for all operators performing critical steps (bead cleanup, nuclease digestion, ligation)
+- Establish a competency assessment (minimum 3 supervised runs before independent work)
+- Require annual refresher training and periodic reassessment
+
+### Expected Improvements
+
+Systematic implementation of these recommendations should yield:
+
+- **Reduced Run-to-Run Variability**: Objective, standardized procedures eliminate operator-dependent variability (Incident B)
+- **Improved Library Quality**: Explicit bead-cleanup guidance and post-cleanup QC reduce carryover contamination and inhibition (Incident A)
+- **Higher Periodicity and Signal-to-Noise**: Optimized nuclease digestion and size selection restore canonical Ribo-seq signatures (Incident C)
+- **Robust UMI Deduplication**: Validated UMI extraction and incoming-oligo specifications prevent collapse during deduplication (Incidents D, E)
+- **Faster Troubleshooting**: Mandatory intermediate QC and checkpoints allow rapid identification of failure points, reducing time-to-resolution
+
+## Conclusion
+
+Ribosome profiling is a powerful but technically demanding workflow. The five incidents investigated here illustrate representative failure modes across wet-lab preparation, chemistry, and bioinformatics. By applying systematic root-cause analysis, leveraging existing data (traces, notes, sequencing outputs), and implementing objective, documented QC gates, the majority of these failures are preventable or rapidly correctable. The pilot data-processing example demonstrates how standard bioinformatic QC (UMI validation, periodicity assessment, adapter-prefix inspection) can serve as early warning systems for upstream failures.
+
+Ultimately, success in Ribo-seq requires a culture of careful documentation, operator training, protocol adherence, and continuous improvement. The fixes and prevention plans outlined here provide a practical framework for diagnosing and resolving failures while building resilience into the workflow for future experiments.
+
+---
+
+# Data analysis summary (Data analysis output)
+### 1. Data Overview
+- reference.fa: Single FASTA file containing one transcript sequence (toy_gene)
+- reads.fastq.gz: 400 single-end reads, 50nt length, containing sequence and quality information
+- protocol.md: Text file containing experimental protocol with sections for steps, reagents, and QC
+- trimmed.fastq: 400 adapter-trimmed reads derived from the original FASTQ file
+
+### 2. Column Dictionary (Detailed)
+
+**reference.fa**
+- id: String, transcript identifier, use for mapping reference
+- sequence: String, nucleotide sequence, use for read alignment
+- length: Numeric, sequence length, use for coordinate validation
+
+**reads.fastq.gz & trimmed.fastq**
+- id: String, read identifier with UMI information, use for tracking reads
+- sequence: String, nucleotide sequence, use for alignment and UMI extraction
+- quality: String, Phred quality scores, use for QC filtering
+- length: Numeric, read length, use for size distribution analysis
+- avg_quality: Numeric, mean quality score, use for quality filtering
+
+**protocol.md**
+- line_num: Numeric, line number in protocol, use for reference
+- type: String, section type (step/reagent/note), use for parsing
+- level: Numeric, heading level, use for structure
+- content: String, protocol text content, use for analysis
+- raw: String, original markdown formatting, use for reference
+
+### 3. Data Integrity & Quality
+- All files present and readable
+- FASTQ quality scores appear acceptable (no systematic degradation)
+- Reference sequence is complete and properly formatted
+- Protocol file contains complete experimental workflow
+- No missing values in key fields
+- Read IDs are unique within FASTQ files
+- UMI information preserved in read headers
+
+### 4. Sub-Problem Analysis: Data Applicability
+
+**Sub-problem 1 (Incident A)**
+- Requires: protocol.md
+- Data sufficient for protocol analysis
+- Focus on cleanup/purification steps
+
+**Sub-problem 2 (Incident B)**
+- Requires: protocol.md
+- Data sufficient for identifying operator-dependent steps
+- Review bead handling instructions
+
+**Sub-problem 3 (Incident C)**
+- Requires: protocol.md, reads.fastq.gz, reference.fa
+- Data sufficient for fragment size and periodicity analysis
+- Analyze length distribution and mapping patterns
+
+**Sub-problem 4 (Incident D)**
+- Requires: reads.fastq.gz, protocol.md
+- Data sufficient for UMI analysis
+- Extract and analyze UMI patterns
+
+**Sub-problem 5 (Incident E)**
+- Requires: protocol.md
+- Data sufficient for oligo specification analysis
+- Review adapter/ligation requirements
+
+**Sub-problem 6 (Data Analysis)**
+- Requires: all files
+- Data sufficient for complete analysis
+- Generate position-wise counts and QC metrics
+
+### 5. Biological Context (from Data)
+- Single transcript ribosome profiling experiment
+- Contains UMI-based deduplication capability
+- Expected footprint size ~28-34nt
+- Coding sequence present in reference transcript
+- Translation-specific features (3-nt periodicity) expected
+
+### 6. Recommendations for Solver
+- Key Keys: Use read IDs for tracking through pipeline
+- Pitfalls: 
+  - Verify UMI extraction before deduplication
+  - Consider soft-clipping in position counting
+  - Account for both strands in alignment
+- Priority: Establish correct read processing workflow before detailed QC
+
+### 7. Domain Knowledge Injection
+- Ribosome footprints should show strong 3-nt periodicity
+- UMI diversity should scale with library complexity
+- Protected fragment size distribution should be narrow
+- Adapter contamination produces characteristic patterns
+- P-site offset typically 12-13nt from 5' end
+
+### 8. Data Integration Strategy
+Process reads.fastq.gz through adapter trimming to generate trimmed.fastq. Align trimmed reads to reference.fa sequence. Extract UMIs during processing and append to read names. Generate both raw and deduplicated position-wise counts. Integrate protocol information to validate each step. Expected final output includes position-wise counts for the single transcript with and without UMI deduplication.
+
+### 9. Step-by-Step Analysis Workflow
+1. Initial QC of raw reads
+2. Extract UMIs and trim adapters
+3. Align to reference transcript
+4. Generate raw position-wise counts
+5. Perform UMI-based deduplication
+6. Generate deduplicated counts
+7. Calculate QC metrics (length distribution, periodicity)
+8. Compare raw vs deduplicated signals
+9. Generate visualization and QC report
+10. Validate against protocol specifications
+11. Document all parameters and decisions
+12. Prepare final counts files and summary report
+
+---
+
+# Writing Task
+Using all information above, write the final answer that **exactly matches the output format and requirements requested in the Problem**.
+
+Mandatory rules:
+- If the problem lists numbered requirements (e.g., "(1)...(5)"), **preserve the numbering/structure** in your answer.
+- If the problem asks for a strategy/pipeline/analysis plan, include **concrete steps, inputs, outputs, metrics, and caveats**.
+- If data files are mentioned, describe **what to read and what to compute** (procedure/algorithm-level; not necessarily code).
+- Explicitly state **assumptions/limitations** where uncertainty or missing information exists.
+- **Write in English.**
+
+**Output only the final answer text.**

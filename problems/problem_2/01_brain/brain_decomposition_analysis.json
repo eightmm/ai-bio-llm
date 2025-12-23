@@ -1,0 +1,5 @@
+{
+  "status": "error",
+  "reason": "Could not resolve files from DB_list: Q1, inactive-control.bam, active-control, inactive-control.pod5, Q4, active-control.pod5, Q3, active-control.bam, active-cre.pod5, Q9, inactive-cre.bam, Q6, Q7, active-cre.bam, Q8, active-cre, inactive-cre.pod5, Q2, inactive, Q5",
+  "problem_id": "rna_virus_cre_polyA_stability"
+}

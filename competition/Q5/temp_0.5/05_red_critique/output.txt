@@ -1,0 +1,29 @@
+## Reliability Score
+- Score: 62
+- Rationale: The report provides a comprehensive methodological framework that is logically structured and addresses all required tasks (A-D). However, it is fundamentally a procedural blueprint rather than an executed analysis—no actual scores, trajectories, or gene-level statistics are computed or reported from the data. The critical transition window selection (Day 21→35) is asserted based on dataset design constraints rather than empirically demonstrated through the proposed change-point analyses. Target gene proposals rely heavily on prior biological knowledge rather than RNA-seq–derived evidence from this specific dataset, which directly contradicts the task requirement for "RNA-seq–based evidence."
+
+## Critiques / Limitations / Risks (in priority order)
+
+1. **No executed analysis or empirical results**: The report describes *how* to compute exhaustion/aging scores and *how* to identify transition windows, but never actually presents computed values, trajectories, or statistical outputs. The task explicitly requires visualization and description of "how these scores change over time," which is absent. This makes the answer non-reproducible and unverifiable.
+
+2. **Target gene evidence is hypothetical, not data-derived**: For each proposed target (TOX, NR4A1-3, ENTPD1, CDKN2A, MAPK14, TCF7, PPARGC1A), the report states "expected expression change (to confirm from RNA-seq)" and "what to report from this dataset"—but never actually reports these values. The task requires "RNA-seq–based evidence including direction of expression change over time," which is not provided.
+
+3. **Critical transition window justification is circular**: The window (Day 21→35) is selected because the DEG files use Day 14 as baseline and the "data applicability notes emphasize day 14–35." This is a design-driven choice, not an empirically justified biological transition. The proposed change-point detection and segmented regression are described but never executed to demonstrate that this interval represents a "state transition rather than gradual continuum."
+
+4. **Signature construction lacks validation reporting**: The exhaustion and aging-like signatures are described procedurally, but no actual gene lists, overlap statistics with canonical markers, or enrichment p-values are provided. The "explicit validation report" mentioned in A2.1 is never delivered.
+
+5. **Conflation of methodological description with results**: Throughout sections A-C, the report conflates "what should be done" with "what was found." Academic reviewers expect executed analyses with specific numerical outcomes, not conditional statements about what patterns "are expected" or "should be verified."
+
+6. **Drug-target mapping is entirely absent**: Section D acknowledges the drug–target dataset was "not included" and provides no therapeutic mapping. While framed as a limitation, this represents a complete omission of the bonus task despite the dataset being mentioned in the problem statement.
+
+7. **Bulk RNA-seq limitation acknowledged but not addressed**: The report correctly notes that bulk data averages multiple T cell states, but does not attempt deconvolution or discuss how this affects the reliability of proposed targets. This limitation undermines confidence in target specificity.
+
+8. **Arbitrary thresholds without sensitivity analysis**: Cutoffs (padj < 0.05, |log2FC| > 1, meanTPM > 1) are stated without justification or exploration of how results might change with alternative thresholds.
+
+9. **Missing correlation analyses**: The report proposes correlating gene expression with exhaustion/aging scores but never computes or reports these correlations, which are central to the "opposing regulation" criterion for target selection.
+
+10. **No pathway/network analysis results**: While pathway context is discussed for each target, no actual enrichment analyses, network visualizations, or pathway scores from the dataset are presented.
+
+## Final Short Summary to Attach
+
+This report provides a methodologically sound procedural framework for analyzing the exhaustion–aging–death axis but fails to execute the proposed analyses or report empirical results. The critical transition window and rejuvenation targets are asserted based on prior biological knowledge and dataset design constraints rather than demonstrated through RNA-seq–derived evidence as explicitly required by the task. All target gene proposals remain hypothetical ("expected," "to confirm") without actual expression statistics, trajectories, or correlations from the provided data. The answer reads as an analysis plan rather than a completed scientific investigation, significantly limiting its reliability and actionability.

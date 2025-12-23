@@ -24,11 +24,11 @@ class CodeExecutor(BaseAnalyst):
     Generates and executes Python code based on data and context
     """
 
-    def __init__(self):
+    def __init__(self, temperature: float = None):
         """Initialize Code Executor"""
         # Code generation/execution model (override with MODEL_DATA_EXECUTOR)
-        super().__init__(model=Config.MODEL_DATA_EXECUTOR)
-        
+        super().__init__(model=Config.MODEL_DATA_EXECUTOR, temperature=temperature)
+
         # Load consolidated prompts
         prompt_content = self._read_prompt_file("executor_prompts.md")
         self.prompts = self._split_prompts(prompt_content)

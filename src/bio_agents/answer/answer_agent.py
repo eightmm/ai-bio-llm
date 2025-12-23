@@ -14,6 +14,7 @@ class AnswerAgent:
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
         model: Optional[str] = None,
+        temperature: Optional[float] = None,
     ):
         self.api_key = api_key or Config.API_KEY
         if not self.api_key:
@@ -21,6 +22,7 @@ class AnswerAgent:
 
         self.base_url = base_url or Config.BASE_URL
         self.model = model or Config.MODEL_ANSWER
+        self.temperature = temperature if temperature is not None else Config.DEFAULT_TEMPERATURE
 
         self.client = OpenAI(
             base_url=self.base_url,
@@ -40,6 +42,7 @@ class AnswerAgent:
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt},
                     ],
+                    temperature=self.temperature,
                 )
                 print("[LLM] Response received", flush=True)
                 return response.choices[0].message.content

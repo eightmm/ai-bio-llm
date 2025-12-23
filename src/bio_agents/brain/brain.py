@@ -38,14 +38,19 @@ class ProblemDecompositionResponse(BaseModel):
 # ==========================================
 
 class BrainAgent:
-    def __init__(self, system_prompt_path: str | os.PathLike | None = None):
+    def __init__(
+        self,
+        system_prompt_path: str | os.PathLike | None = None,
+        temperature: float | None = None,
+    ):
         self.api_key = Config.API_KEY
         self.base_url = Config.BASE_URL
         self.model = Config.MODEL_BRAIN
         self.system_prompt_path = system_prompt_path
-        
+        self.temperature = temperature if temperature is not None else Config.DEFAULT_TEMPERATURE
+
         if not self.api_key:
-             raise ValueError("API Key is missing. Please set OPENROUTER_API_KEY in .env")
+            raise ValueError("API Key is missing. Please set OPENROUTER_API_KEY in .env")
 
         self.client = OpenAI(
             base_url=self.base_url,
@@ -82,6 +87,7 @@ class BrainAgent:
                         {"role": "user", "content": f"Decompose this biological problem:\n\n{question}"}
                     ],
                     response_format={"type": "json_object"},
+                    temperature=self.temperature,
                     timeout=Config.TIMEOUT
                 )
                 

@@ -1,0 +1,23 @@
+## Reliability Score
+- Score: 52
+- Rationale: The report provides a methodologically rigorous framework with explicit operational definitions and validation requirements. However, it is fundamentally a **procedural blueprint** rather than an executed analysis—no actual scores, gene lists, correlations, or transition windows are computed or reported. The answer repeatedly states what "must be produced" or "must be reported" without delivering these outputs. While the analytical logic is sound, the lack of concrete results means the scientific question remains unanswered. The framework is reproducible in principle but untested against the actual data.
+
+## Critiques / Limitations / Risks (in priority order)
+
+1. **No Executed Analysis or Concrete Results**: The report describes procedures but never executes them. Section A4 states "Required quantitative description (must be reported from the computed scores)" but no scores are actually computed or visualized. Section B2 describes detection procedures but never identifies the actual transition window. Section C lists candidate genes but explicitly conditions their validity on "if supported by the dataset"—without verifying this support. This fundamentally fails to answer the task's deliverables.
+
+2. **Circular Dependency in Signature Definitions**: The exhaustion and aging-like signatures are defined using the same DE tables that will be used to compute scores and identify transitions. While the report acknowledges validation against external resources (GenAge, MSigDB), it does not address the risk that data-derived signatures may simply recapitulate the temporal structure of the experiment rather than capture biologically meaningful programs.
+
+3. **Candidate Targets Lack RNA-seq Verification**: Section C2 lists biologically plausible targets (TOX, NR4A family, CDKN2A, TCF7, etc.) but explicitly states these "must not be reported as 'supported' unless the RNA-seq tables show the required DE direction." Since no verification was performed, these remain speculative hypotheses rather than data-driven proposals, directly contradicting the task requirement for "RNA-seq–based evidence."
+
+4. **Statistical Limitations Underaddressed**: With only six timepoints and no per-sample data, computing correlations (as proposed in C1) yields at most n=6 data points per gene—insufficient for reliable inference. The report acknowledges the lack of uncertainty bands but does not adequately address the statistical fragility of breakpoint detection or correlation-based target selection with such sparse temporal sampling.
+
+5. **Conflation Risk Between Aging-Like and Death Programs**: While Section A2.3 proposes separating aging-like from death/apoptosis scores, the operational criteria for distinguishing "late-emerging stress/aging-like genes" from apoptosis-associated genes remain ambiguous. Both would show late induction with similar DE patterns, and the report does not specify how to resolve overlapping gene memberships.
+
+6. **Therapeutic Mapping Incomplete**: Section D explicitly states that if the drug–target dataset is unavailable, "therapeutic mapping cannot be enumerated." This conditional framing leaves the bonus section unexecuted, though the task implies such a dataset was provided.
+
+7. **Reproducibility Concerns**: While the framework is detailed, key parameters (e.g., which specific MSigDB gene sets to use, how to handle genes appearing in multiple signatures, tie-breaking rules for transition window selection) are left underspecified, potentially leading to different results if independently implemented.
+
+## Final Short Summary to Attach
+
+This report presents a well-structured analytical framework for addressing the exhaustion–aging–death axis but fails to execute the proposed analyses or deliver concrete results. No scores are computed, no transition window is identified, and no targets are validated against the provided RNA-seq data. The candidate genes listed remain hypothetical pending verification that was not performed. While methodologically thoughtful, the report functions as a protocol rather than a completed scientific analysis, leaving the core scientific question unanswered. Statistical limitations from sparse temporal sampling and the absence of per-sample data are acknowledged but insufficiently mitigated. The reliability of conclusions is fundamentally limited by the gap between proposed procedures and executed analysis.

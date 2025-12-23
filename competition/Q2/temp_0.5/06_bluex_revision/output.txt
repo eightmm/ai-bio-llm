@@ -1,0 +1,270 @@
+## Integrated AI Framework to Predict Cellular Aging/Disease Progression from TERRA RNA-Modification Patterns (Modules A–C)
+
+### Objective (must satisfy all three)
+1. **Predict** cellular aging status and/or disease progression probability from TERRA-related multi-omics + imaging data.  
+2. **Quantify and visualize** the **model’s reliance** on individual RNA modification types (m6A, pseudouridine/Ψ, m5C) and their downstream features.  
+3. **Provide mechanistic interpretability** by linking consistently attributed molecular features to telomere/senescence-related pathways **as hypothesis-generating evidence (not causality)**.
+
+**Scope note (empirical grounding):** This is a **design and execution-ready** framework. It does **not** claim achieved performance without running on a labeled cohort. Where “predict” is used below, it denotes the intended function once trained and validated.
+
+---
+
+## Module A: Multimodal Data Integration and Normalization  
+**Goal:** integrate heterogeneous TERRA-relevant modalities into a unified representation that is (i) robust to missing modalities, (ii) explicit about uncertainty, and (iii) technically viable for **TERRA’s repetitive sequence** challenges.
+
+### A(1). Data types and AI tools used (with justification)
+
+#### A(1.1) Input data modalities (sample/patient-aligned where possible)
+- **Transcriptomic**
+  - Bulk RNA-seq (stable sample-level signal for risk prediction)
+  - scRNA-seq (captures heterogeneous senescence and disease states)
+- **RNA modification / epigenetic**
+  - TERRA- and telomere-proximal RNA modification maps for **m6A**, **Ψ**, **m5C**
+  - Assays: MeRIP-seq (peak-level), miCLIP (site-level where available)
+  - Optional ChIP-seq for telomere-associated factors (context for telomeric chromatin state)
+- **Imaging**
+  - Telomere DNA FISH, TERRA RNA-FISH, and super-resolution morphology metrics (STED/SIM when available)
+
+#### A(1.2) TERRA-specific preprocessing: concrete, reproducible handling of repetitive mapping
+TERRA quantification and modification calling are not standard transcriptome tasks; to avoid artifactual signals, preprocessing must explicitly model repetitiveness and ambiguity.
+
+**A. Define TERRA-oriented feature targets (two complementary families):**
+1. **Repeat-content features (global telomeric repeat signal):** reads containing telomeric repeat motifs (e.g., TTAGGG/CCCUAA-like content on RNA) independent of unique locus assignment.  
+2. **Locus-anchored features (subtelomeric unique anchors):** reads that overlap **unique subtelomeric sequence** adjacent to telomeric repeats (when present), enabling locus-proximal attribution without forcing unique mapping of repeat-only reads.
+
+**B. Alignment and counting principles (applies to RNA-seq and IP-based modification assays):**
+- **Retain multi-mapping reads** (do not discard by default), because discarding them systematically underestimates telomeric repeat signal.
+- Record per-read **multi-mapping multiplicity** and use **fractional assignment** (e.g., 1/k weight per alignment) for repeat-derived aggregates. The model then learns from a stable, bias-aware summary rather than unstable “unique-only” counts.
+- Maintain **separate channels** for (i) unique-anchor counts and (ii) repeat-content counts to prevent conflation.
+
+**C. Normalization across variable transcript lengths/copy number and assay resolution**
+- For each sample, compute:
+  - **Expression-normalized modification signal**: IP/Input adjusted by local abundance (so “more RNA” does not masquerade as “more modification”).
+  - **Coverage-aware features**: include effective coverage/usable reads as covariates so low coverage does not appear as low modification.
+  - **Resolution-aware labels**: treat MeRIP features as peak-level (regional) and miCLIP features as site-level; do not mix them without encoding assay type as metadata.
+
+These steps convert “TERRA is hard to map” from a limitation into an explicit modeling choice: ambiguity is retained and represented, not ignored.
+
+#### A(1.3) Modality-specific normalization (beyond TERRA-specific points)
+- **Bulk RNA-seq**
+  - QC: mapping rate, library complexity; retain multi-mapping metrics as covariates
+  - Normalize with TMM or DESeq2 size factors; transform with log2(count+1) or VST
+- **scRNA-seq**
+  - QC: mitochondrial fraction, UMI counts, gene detection thresholds
+  - Batch-aware latent integration with **scVI**; reference mapping with **scArches**
+  - If labels are sample-level, use attention-weighted pooling over cells to derive a sample representation while preserving cell-state mixture information.
+- **RNA modification maps (m6A/Ψ/m5C)**
+  - Peak/site calling per assay type (MeRIP peaks; miCLIP sites where available)
+  - Feature sets emphasizing TERRA and telomere-proximal regions:
+    - peak strength (IP/Input), peak width, site/peak counts, positional annotations, and abundance-adjusted modification indices
+- **ChIP-seq (optional)**
+  - Peak calling with MACS2; summarize signal near subtelomeric regions and telomere-associated loci
+- **Imaging**
+  - Hand-crafted features (CellProfiler): foci counts, intensity distributions, colocalization metrics, clustering statistics
+  - Deep embeddings: segmentation (U-Net/Mask R-CNN) + self-supervised encoder (ViT-MAE) for morphology embeddings
+
+#### A(1.4) Multimodal integration model (preferred)
+- **Multimodal VAE (mmVAE; “totalVI-like” extension across modalities)** producing a joint latent posterior \(q(z)\) with uncertainty.
+- **Hierarchical latent structure to preserve modification-type identity:**
+  - \(z_{\text{shared}}\): shared biological state
+  - \(z_{m6A}, z_{\Psi}, z_{m5C}\): modification-type–specific factors  
+  This is critical for downstream attribution **without asserting causality**.
+
+#### A(1.5) Missing modality handling with informative-missingness safeguards
+- **Modality dropout** during training + product/mixture-of-experts inference (robust to missing modalities)
+- **Explicit missingness indicators** as inputs (binary mask + per-modality quality metrics)
+- **Sensitivity design:** train/evaluate with stratified missingness scenarios (e.g., “imaging missing more often in severe disease”) to detect and limit confounding by missingness patterns.
+
+**Module A outputs (to be passed forward):**
+- Uncertainty-aware joint latent posterior per sample: \(q(z)\) (mean + covariance)
+- Modification-type latent factors: \(z_{m6A}, z_{\Psi}, z_{m5C}\)
+- Modality quality metrics and missingness mask
+- (Optional) reconstructed/denoised feature summaries for stability checks (not treated as ground truth)
+
+---
+
+### A(2). Alternative design choices and why they were not selected
+- **Concatenation + classical ML:** simple but brittle under high-dimensional heterogeneity, multi-mapping artifacts, and missing modalities.
+- **Late fusion ensembles:** easier to train, but tends to miss cross-modal interaction terms central to telomere regulation (e.g., modification-by-expression or modification-by-morphology effects). Kept as an explicit baseline in Module C.
+- **Multimodal Transformer over raw features:** powerful but often data-hungry and less naturally uncertainty-aware; also harder to integrate multi-mapping/coverage uncertainty without an explicit probabilistic layer.
+
+---
+
+### A(3). How Module A outputs feed into Module B
+Module B consumes:
+- Joint latent mean plus uncertainty (via sampling or variance features)
+- Modification-type latents as structured inputs (“tokens”)
+- Missingness and quality covariates to reduce confounding from informative missingness and low-quality assays
+
+---
+
+## Module B: Predictive Model Design  
+**Goal:** convert integrated representations into aging/disease risk predictions while enabling *faithful* quantification of how much the model relies on each modification type.
+
+### B(1). Data types and AI tools used (with justification)
+
+#### B(1.1) Prediction targets (depending on labels)
+- Classification (e.g., senescent vs non-senescent; disease vs control; ordinal stages)
+- Regression (continuous aging score)
+- Survival/time-to-event (progression risk over time)
+- Multi-task learning when multiple endpoints exist (regularizes and improves biological consistency)
+
+#### B(1.2) Preferred architecture (with corrected interpretability framing)
+- **Transformer encoder over latent tokens**:
+  - tokens: \(z_{\text{shared}}, z_{m6A}, z_{\Psi}, z_{m5C}\), optional modality/context tokens, plus missingness/quality embeddings
+  - benefit: models interactions among shared state, modification types, and context
+- **Grouped Mixture-of-Experts (MoE) head** (experts grouped by modification type) **as an inductive bias**:
+  - Outputs: prediction \( \hat{y} \) and gating weights \(g_{m6A}, g_{\Psi}, g_{m5C}\)
+  - **Interpretability correction:** gating weights quantify *model allocation/usage* of experts, not direct biological causality. They are treated as **candidate contribution scores** that require faithfulness checks (Module C).
+
+#### B(1.3) Uncertainty propagation from Module A (previously incomplete)
+To avoid losing calibration benefits from \(q(z)\):
+- At inference and evaluation, draw \(K\) Monte Carlo samples \(z^{(k)} \sim q(z)\), compute predictions \(\hat{y}^{(k)}\), and report:
+  - mean prediction (risk score)
+  - predictive uncertainty (variance across samples)
+- Optionally provide the posterior variance (or diagonal) as additional features to the predictive head when sampling is too costly.
+
+#### B(1.4) Training details (actionable and reproducible)
+- Losses: cross-entropy / ordinal loss; MAE/MSE; survival loss (Cox-style or discrete-time)
+- Regularization:
+  - modality dropout consistent with Module A
+  - MoE load-balancing to prevent expert collapse
+  - early stopping, weight decay
+- Splitting:
+  - patient-level split; stratify by batch/age/stage to reduce leakage
+- Practical simplification for limited compute:
+  - freeze imaging encoder embeddings and mmVAE encoders after warm-up; train predictive head separately (reduces memory/time without changing scope)
+
+**Module B outputs (to be passed forward):**
+- Predicted probability/risk (+ predictive uncertainty from MC sampling)
+- MoE gating weights per sample (candidate modification-type reliance scores)
+- Attention weights/embeddings for interaction-level interpretation
+- Outputs under feature-masking counterfactuals (computed in Module C for faithfulness)
+
+---
+
+### B(2). Alternative design choices and why they were not selected
+- **Single-modality models:** fail to capture cross-modal interactions and can misattribute risk when one modality is biased or missing; kept as baselines.
+- **Pure MLP on concatenated features:** simpler but less robust to missingness and less structured for modification-type attribution.
+- **Pure pathway/PPI GNN as primary predictor:** imposes strong priors; may be useful as an auxiliary interpretability layer but not required for the core prediction task.
+
+---
+
+### B(3). How Module B outputs feed into Module C
+Module C uses:
+- Predictions for discrimination, calibration, and robustness evaluation
+- Gating weights + attention + gradient-based attributions for contribution quantification
+- MC-based uncertainty for calibration assessment and decision thresholding
+
+---
+
+## Module C: Model Interpretation and Evaluation  
+**Goal:** (i) rigorously evaluate predictive performance and robustness, (ii) quantify contribution of each RNA modification type with *faithfulness checks*, and (iii) link consistent signals to pathways while controlling circularity.
+
+### C(1). Data types and AI tools used (with justification)
+
+#### C(1.1) Contribution quantification with faithfulness safeguards (addresses MoE conflation risk)
+Use multiple, non-identical signals and require agreement:
+
+1. **MoE gating weights (model-internal reliance)**
+   - Interpret as “fraction of prediction routed through modification-type experts.”
+   - **Not sufficient alone**; used as a compact summary to be validated by perturbation tests below.
+
+2. **Counterfactual feature ablations (faithfulness test; architecture-agnostic)**
+   - For each sample, recompute prediction after **masking** the modification-type token (or setting it to a neutral baseline) while keeping other tokens intact:
+     - \(\Delta_{m6A} = \hat{y} - \hat{y}_{\text{mask } m6A}\) (similarly for Ψ, m5C)
+   - This quantifies how much the prediction *changes when that modification information is removed*, providing a more causal-proxy faithfulness check than routing weights alone.
+
+3. **Integrated Gradients (IG) / DeepSHAP**
+   - Compute attributions w.r.t. modification-type tokens and/or reconstructed feature summaries.
+   - Aggregate by modification type and by TERRA-specific feature groups (repeat-content vs locus-anchored vs imaging colocalization).
+
+4. **Consistency criteria**
+   - Report concordance between (i) gating, (ii) masking deltas, and (iii) IG/SHAP attribution mass. Large disagreement flags unreliable “contribution” claims.
+
+#### C(1.2) Visualization outputs (explicit requirement)
+- **Per-sample contribution decomposition**
+  - Stacked bar: masking-based \(\Delta\) contributions for m6A/Ψ/m5C (primary), with gating weights as secondary overlay.
+- **TERRA modification attribution heatmaps**
+  - Site/peak-level (where assay resolution supports it) with clear labeling of MeRIP (peak) vs miCLIP (site).
+- **Latent space plots (UMAP)**
+  - colored by predicted risk; point annotations showing dominant modification-type reliance.
+- **Mechanistic flow diagram (Sankey-style)**
+  - modification type → top attributed feature groups (e.g., TERRA repeat-content modification index; TERRA–telomere colocalization metrics) → pathway scores → predicted outcome  
+  Width reflects attribution mass **and** is annotated as “model attribution,” not biological effect size.
+
+#### C(1.3) Mechanistic interpretability linked to pathways with circularity controls
+Pathway analysis is framed as *interpretation of model logic*, with explicit safeguards:
+
+- **Avoid circularity by separating training features and interpretation layers**
+  - If telomere/senescence pathway scores are used as direct inputs, then pathway enrichment on those same curated sets is not presented as mechanistic discovery; instead it is reported as “model uses pre-specified pathway features.”
+- **Permutation/negative-control strategy (within the same dataset)**
+  - Run enrichment on (i) top-attributed genes and compare to (ii) matched-size random gene sets (matched for expression level/variance if those are used in preprocessing) to check whether enrichment exceeds what is expected from generic high-signal genes.
+- **Hold-out pathway families**
+  - When feasible, reserve a subset of pathway gene sets for *interpretation-only* (not used as direct engineered inputs), reducing self-fulfilling interpretations.
+
+---
+
+### C(2). Alternative design choices and why they were not selected
+- **Attention-only explanations:** attention is not guaranteed faithful; used only as supportive evidence alongside masking deltas and IG/SHAP.
+- **Single explainer method:** IG/SHAP can be baseline-sensitive; agreement across methods is required for stable claims.
+- **Correlation-only mechanistic linking:** replaced by attribution-guided ranking plus controls for circularity and missingness confounding.
+
+---
+
+### C(3). How Module C outputs feed into iterative refinement (and deployment)
+- If masking deltas disagree with gating/IG/SHAP:
+  - adjust MoE grouping/regularization; reduce expert capacity; simplify tokenization
+- If informative missingness is detected (performance shifts when missingness correlates with labels):
+  - include missingness as a modeled covariate; evaluate within strata of missingness; avoid reporting imputation-driven gains
+- If TERRA features appear unstable (high sensitivity to mapping/coverage metrics):
+  - tighten QC thresholds; reweight repeat-content vs locus-anchored channels; enforce coverage-aware normalization
+
+Deployment deliverables per sample:
+- calibrated risk/probability + uncertainty interval
+- primary contribution plot (masking-based) for m6A/Ψ/m5C
+- top driving feature groups (TERRA repeat vs subtelomeric anchors vs imaging colocalization) + pathway summary with stated limitations
+
+---
+
+## Evaluation Plan (Module C: metrics, baselines, feasibility)
+
+### Metrics
+- **Classification:** AUROC, AUPRC, Brier score, calibration curve/ECE
+- **Regression:** MAE, R², Spearman/Pearson
+- **Survival:** C-index, time-dependent AUC, integrated Brier score
+
+### Baselines (explicit, to ground feasibility without external results)
+1. Late fusion ensemble (per-modality predictors combined at decision level)
+2. Linear latent factor baseline (factor model + logistic/Cox regression)
+3. Single-modality models (RNA-only; modifications-only; imaging-only)
+
+### Ablations (required to validate “modification-type contribution”)
+- Drop each modality at inference (stress test)
+- Drop each modification type (remove \(z_{m6A}\), \(z_{\Psi}\), \(z_{m5C}\) or mask their features)
+- Replace MoE with a single head to test whether MoE improves predictive value or only changes interpretability optics
+
+### Missingness/confounding checks (addresses systematic bias risk)
+- Compare performance and attribution distributions across missingness strata (e.g., imaging present vs absent)
+- Include missingness masks as covariates; test whether predictions remain stable when conditioning on missingness patterns
+
+### Computational feasibility (scalability constraints made explicit)
+- Training is staged for tractability:
+  1) train modality encoders/mmVAE; 2) freeze or partially freeze encoders; 3) train predictive head; 4) run attributions on a selected evaluation set.
+- If compute/data are limited, a minimal viable variant is: mmVAE latent + lightweight head + masking deltas + IG (omit transformer/MoE), while preserving the same A→B→C contract.
+
+---
+
+## Assumptions / Limitations (explicit and tightened)
+- This document specifies a **framework**, not a validated model; empirical performance must be established on a labeled cohort with patient-level splits.
+- TERRA measurement is technically challenging; the framework mitigates (but cannot eliminate) ambiguity via multi-mapping–aware features and separate repeat vs anchor channels.
+- MeRIP provides peak-level signals; site-level mechanistic interpretations require appropriate assay resolution and should be labeled as such.
+- Attribution and pathway mapping describe **model reliance**, not biological causation; mechanistic claims are presented as hypotheses requiring orthogonal validation.
+
+---
+
+## End-to-end workflow summary (inputs → outputs)
+- **Inputs:** RNA-seq/scRNA-seq; m6A/Ψ/m5C maps (MeRIP/miCLIP); optional ChIP-seq; telomere/TERRA FISH imaging; outcome labels; modality quality + missingness metadata.  
+- **Module A output:** uncertainty-aware joint latent + modification-type latents + missingness/quality covariates, with TERRA-aware repeat/anchor feature handling.  
+- **Module B output:** calibrated risk predictions with uncertainty + candidate modification-type reliance signals (gating) designed to be tested via masking deltas.  
+- **Module C output:** validated performance and calibration; explicit visualizations of m6A/Ψ/m5C contributions (masking-based primary) and pathway-linked interpretation with circularity and missingness controls.

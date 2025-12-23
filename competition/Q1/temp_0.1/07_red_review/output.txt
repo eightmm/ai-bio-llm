@@ -1,0 +1,25 @@
+## Reliability Score
+- Score: 72
+- Rationale: The answer demonstrates strong conceptual understanding of Ribo-seq troubleshooting and provides logically coherent diagnoses for each incident. Root cause rankings are generally well-justified by the stated observations. However, the response suffers from several critical gaps: (1) it cannot verify claims against the actual protocol.md content, which is central to the task constraints; (2) the computational pipeline in 1-6 is incomplete and requires external alignment steps not guaranteed in the environment; (3) quantitative QC thresholds are asserted without empirical justification from the provided data; (4) some fixes are generic best practices rather than protocol-specific corrections.
+
+## Critiques / Limitations / Risks (in priority order)
+
+1. **Failure to reference actual protocol.md content**: The task explicitly states answers "must be supported by the protocol text," yet the response repeatedly acknowledges it cannot see the protocol file. All claims about what the protocol does or does not specify (e.g., cleanup steps, UMI positions, adapter sequences) are hypothetical rather than verified. This fundamentally undermines the evidentiary basis required by the problem constraints.
+
+2. **Incomplete deliverables for 1-6**: The pipeline script requires an external alignment step (bowtie2/samtools) and halts if aligned.bam is missing. This means the "single-command workflow" claim is false—it cannot produce the required CSVs and plots without manual intervention. The script also hardcodes placeholder values (e.g., `--adapter=""`, `--umi_len=8`) that must be derived from protocol.md, creating circular dependency.
+
+3. **Arbitrary quantitative thresholds without data support**: QC gates such as "A260/230 < 1.5," "Ct SD > 0.5," ">15-20% reads >40 nt," and "UMI entropy < 1.5 bits" are presented as actionable cutoffs but lack derivation from the provided reads.fastq.gz or any stated literature source. These thresholds may be reasonable heuristics but are not empirically justified within the answer's own framework.
+
+4. **Incident C diagnosis is underspecified**: While under-digestion is plausible, the answer does not distinguish between nuclease concentration errors, incubation time/temperature deviations, or buffer composition issues—all of which require different fixes. The protocol audit suggestion is appropriate but the "fix" section remains generic.
+
+5. **Incident E oligo verification is incomplete**: The answer correctly identifies oligo specification mismatch as the likely cause but does not provide a concrete method to verify the oligo sequence/chemistry from existing data. The suggested "sequence-motif check" is valid but the expected motif is not extracted from protocol.md (which the answer cannot access).
+
+6. **Cross-incident validation plan lacks prioritization**: The integrated prevention plan lists multiple QC gates but does not specify which are mandatory versus recommended, nor does it address resource constraints (e.g., not all labs have qPCR or TapeStation access for every run).
+
+7. **Periodicity analysis cannot be performed**: The answer correctly notes that CDS coordinates are required for 3-nt periodicity assessment but does not attempt to infer or request this information, leaving a key Ribo-seq QC metric unaddressed in the deliverables.
+
+8. **Reproducibility risk in script**: The Python script uses hardcoded assumptions about read structure that may not match the actual protocol. If the UMI is not at the 5' end or has a different length, the entire analysis would be invalid. No validation step confirms the extraction is correct before proceeding.
+
+## Final Short Summary to Attach
+
+This response provides a well-organized, conceptually sound troubleshooting framework for the five incidents, with appropriately ranked root causes and reasonable diagnostic logic. However, it fails to meet the core task constraint of grounding answers in the actual protocol.md text, which it acknowledges not having access to. The computational deliverables for 1-6 are incomplete (requiring external alignment tools and manual parameter specification), and quantitative QC thresholds are asserted without empirical derivation from the provided data. The cross-incident prevention plan is comprehensive but generic. To improve reliability, the answer would need to: (1) explicitly parse and cite protocol.md content, (2) provide a fully self-contained analysis pipeline, and (3) derive thresholds from the actual pilot data rather than general heuristics.

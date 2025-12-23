@@ -1,0 +1,11 @@
+day,condition,category,source
+day5,E5,acute_effector,"resource from Mary Philip et al., Nature (2017)"
+day5,L5,early_dysfunction,
+day7,E7,acute_effector,
+day7,L7,early_dysfunction,
+day14,L14,fixed_dysfunction,
+day21,L21,deep_exhaustion,
+day28,L28,deep_exhaustion,
+day35,L35,deep_exhaustion,
+day60,L60,deep_exhaustion,
+Notice: DESeq2 result table from bulk RNA-seq,,,

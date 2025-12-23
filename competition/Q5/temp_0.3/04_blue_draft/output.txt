@@ -1,0 +1,261 @@
+## (A) Quantification of Exhaustion and Aging-Like Programs
+
+### A1. Inputs, data structure, and what is directly computable from the provided files
+**Inputs**
+- `Q5.maryphilip_metadata.csv` (10 rows): sample annotation including `day`, `condition`, `category`, `source`.
+- 6 DEG tables (36,255 genes each) for timepoints **day 5, 7, 14, 21, 35, 60** (each row = gene; includes `log2FoldChange`, `padj`, and **mean TPM** columns for the two compared groups).
+
+**Key constraint (important)**
+- The DEG tables provide **meanTPM per group** (and DE statistics), not an explicit “genes × samples” expression matrix in the provided summary. Therefore, program scores can be computed robustly as **timepoint-level scores** (one value per day), and as **replicate-level scores** only if replicate-level expression is available via metadata-linked expression tables (not described in the provided analysis output).
+
+### A2. Constructing an expression matrix across time (timepoint means)
+**Goal:** build a **genes × timepoints** matrix `E(gene, day)` using the `meanTPM_*` columns.
+
+**Procedure**
+1. Use the gene key `Unnamed: 0` to align genes across all DEG files (gene IDs are unique and consistent).
+2. For each DEG file (day X), extract the two mean TPM columns corresponding to the compared groups, and map them to:
+   - `E(gene, day0)` (reference group in that comparison)
+   - `E(gene, dayX)` (the day-X group)
+3. Reconcile `E(gene, day0)` across DEG files (they should agree closely; if not, average them and record dispersion as a QC metric).
+
+**Output**
+- `E`: a timepoint-mean expression matrix for days **0, 5, 7, 14, 21, 35, 60**.
+
+**QC metrics**
+- Correlation of reconstructed `day0` meanTPM vectors across DEG files (expect high correlation if the same reference was used).
+- Filter to “expressed genes” for scoring: e.g., `E(gene, any day) > 1 TPM` to avoid noise-driven signatures.
+
+---
+
+### A3. Defining a T cell exhaustion score from time-course-derived signatures
+**Goal:** derive an exhaustion program *from this dataset* (not only from literature), then score its activity over time.
+
+**Signature derivation (data-derived, anchored to exhaustion biology)**
+1. Identify **early & sustained induction genes**:
+   - Significant at early timepoints: (day 5 vs day 0) or (day 7 vs day 0): `padj < 0.05` and `log2FoldChange > 1`
+   - Still induced later (day 14/21 vs day 0): e.g., `log2FoldChange > 0` (or a stricter threshold if desired)
+2. From these, retain the subset enriched for canonical exhaustion-related functions by overlap with a **curated exhaustion anchor list** (used only as *annotation/validation*, not as the sole definition): inhibitory receptors and exhaustion TFs (e.g., PDCD1, HAVCR2, LAG3, TIGIT, TOX, NR4A-family, PRDM1, IRF4, BATF).  
+3. The resulting set is the **Exhaustion Signature (TexSig)**.
+
+**Scoring**
+- Transform expression: `x = log2(TPM + 1)`
+- Standardize per gene across timepoints: `z(gene, day)` (z-score across days)
+- **Exhaustion score at each day:**  
+  \[
+  \text{ExhaustionScore}(day) = \frac{1}{|TexSig|} \sum_{g \in TexSig} z(g, day)
+  \]
+(If a downregulated exhaustion-contrasting set is also defined, use a signed score = mean(up) − mean(down).)
+
+**Visualization**
+- Line plot: `day` on x-axis; `ExhaustionScore(day)` on y-axis (one point per day).
+- Optional: heatmap of `z(gene, day)` for TexSig genes, with genes clustered by temporal pattern.
+
+**Expected time behavior to report (based on the dataset design of early vs late timepoints)**
+- With tumor challenge and chronic stimulation, Tex programs typically rise **early (day 5–14)** and may plateau or further intensify through **day 21–35**, depending on whether the population shifts toward terminal exhaustion.
+
+---
+
+### A4. Defining an aging-like score from time-course-derived signatures (senescence/stress-like)
+**Goal:** capture a secondary program that emerges later than “classical exhaustion” and reflects aging-like stress/senescence transcriptional states.
+
+**Signature derivation (data-derived, validated with aging resources)**
+1. Identify **late-induced genes**:
+   - Strongly significant at later timepoints: (day 35 vs day 0) and/or (day 60 vs day 0): `padj < 0.05`, `log2FoldChange > 1`
+   - Not strongly induced early: require (day 5 vs day 0) and (day 7 vs day 0) to be non-significant or small effect (e.g., `padj > 0.1` or `|log2FC| < 0.5`) to enrich for a late-onset program.
+2. Validate/annotate the late-induced gene set by overlap enrichment against:
+   - **GenAge** gene list(s)
+   - **MSigDB aging/senescence-related sets** (including senescence/SASP-like and stress-response collections, if available)
+3. The resulting set is the **Aging-like Signature (AgingSig)**.
+
+**Scoring**
+- Same approach as exhaustion: compute `z(gene, day)` across days.
+- **Aging-like score at each day:**
+  \[
+  \text{AgingLikeScore}(day) = \frac{1}{|AgingSig|} \sum_{g \in AgingSig} z(g, day)
+  \]
+
+**Visualization**
+- Line plot of `AgingLikeScore(day)` across days.
+- Heatmap of AgingSig gene z-scores across time.
+
+**How to describe the time trend (what to test and report)**
+- Aging-like score should be comparatively low early and then rise later (often **after exhaustion features are established**), i.e., onset around **day 14–35** in this dataset’s temporal spacing.
+
+---
+
+## (B) Identification of the Critical Transition Window
+
+### B1. Operational definition of the “Exhaustion → Aging-Like → Death” axis in this dataset
+- **Exhaustion phase:** early induction of TexSig (days 5–14).
+- **Aging-like phase:** later induction of AgingSig (typically emerging after TexSig is already elevated; candidate onset days 14–35).
+- **Death/terminal loss of viability (supporting readout):** although not explicitly requested as a scored program in (A), you can corroborate the axis by additionally scoring a **Death/Apoptosis/Stress** program (e.g., apoptosis hallmark / caspase/BCL2-family–related genes) using the same framework.
+
+### B2. Transition window identification (statistical and biological criteria)
+**Candidate transition window (from the provided analysis summary):** **day 14 to day 35**.
+
+**Why day 14–35 is treated as a biologically meaningful transition (and not just gradual drift)**
+Use *multi-criterion evidence*, all computable from the DEG tables and timepoint-mean matrix:
+
+1. **Change in slope / change-point in program scores**
+   - Fit piecewise (segmented) regression of `AgingLikeScore(day)` vs `day` and test for a breakpoint.
+   - A meaningful transition is supported if the best-fit model places a breakpoint between **day 14 and day 35** and improves AIC/BIC compared with a single smooth trend.
+
+2. **Coordinated gene-set rewiring**
+   - Compare DEG enrichments for:
+     - day 14 vs day 0 (exhaustion establishment)
+     - day 21 vs day 0 (intermediate)
+     - day 35 vs day 0 (late/aging-like)
+   - A discrete transition is supported when **new functional categories** (aging/senescence, stress-response, DNA damage response, apoptosis) become significantly enriched primarily in the day 21–35 comparisons rather than accumulating uniformly from day 5 onward.
+
+3. **Temporal ordering (axis logic)**
+   - Show that TexSig is already elevated by ~day 14, and AgingSig accelerates later (day 21–35).
+   - Optionally, demonstrate that a death/apoptosis score increases **after** AgingSig rises, supporting the “Aging-like → Death” link.
+
+**Deliverable statement for (B)**
+- **Critical transition window:** **day 14–35**, with day 21 serving as an intermediate waypoint.
+- **Interpretation:** this interval is where the transcriptome shifts from primarily exhaustion-associated regulation to a combined exhaustion + aging-like stress program that precedes terminal dysfunction.
+
+**Limitation**
+- With only 7 timepoints, breakpoint resolution is limited to the sampling grid; the true transition may occur between measured days (e.g., between 14 and 21).
+
+---
+
+## (C) Proposal of Rejuvenation Target Genes
+
+### C1. Target-selection rules (RNA-seq grounded)
+A gene is prioritized as a rejuvenation target if it satisfies **all** of the following using the provided DEG outputs:
+
+1. **Transition-window regulation:** shows significant change specifically in **day 14/21/35** comparisons (e.g., becomes strongly DE at day 21/35 but not at day 5/7).
+2. **Directionality matches “rejuvenation logic”:**
+   - If a gene rises with ExhaustionScore/AgingLikeScore → propose **inhibition**.
+   - If a gene drops as ExhaustionScore/AgingLikeScore rise → propose **activation**.
+3. **Pathway/module coherence:** belongs to (or is a plausible regulator of) exhaustion, stress/senescence, metabolic fitness, or apoptosis pathways (supported by enrichment context from the gene sets used in A).
+4. **Practical measurability in this dataset:** has sufficient expression (e.g., meanTPM > 1 in at least one timepoint) so the DE calls are not driven by low-count noise.
+
+**Outputs to report per target (all directly retrievable from DEG tables)**
+- `log2FoldChange` and `padj` at day 14, 21, 35, 60 vs baseline (as available)
+- MeanTPM trend across timepoints from `E(gene, day)`
+- Assignment to TexSig or AgingSig (or anti-signature)
+- Brief pathway context (e.g., exhaustion TF axis; senescence/stress; apoptosis)
+
+---
+
+### C2. Candidate rejuvenation targets (to intervene during day 14–35)
+
+> **Important note on evidence:** Below are mechanistically justified candidates aligned to the axis definition. For each, the *required RNA-seq evidence* is explicitly stated as the exact fields to extract from the provided DEG tables (log2FC/padj/meanTPM). The provided analysis summary does not include gene-level DEG results, so the directionality **must be confirmed by reading the DEG rows for these genes**.
+
+#### (1) TOX — **Inhibition**
+- **Expected RNA-seq evidence to extract**
+  - Increasing meanTPM from day 14 → day 35/60 in `E(TOX, day)`
+  - Positive log2FoldChange (day 21/35/60 vs day 0) with `padj < 0.05`
+- **Network/pathway context**
+  - Central transcriptional regulator associated with exhaustion-state maintenance.
+- **Opposing regulation logic**
+  - If TOX is positively aligned with TexSig and rises in the transition window, inhibiting it is predicted to **reduce ExhaustionScore** and indirectly blunt late aging-like reinforcement.
+
+#### (2) NR4A1 / NR4A2 / NR4A3 — **Inhibition**
+- **Expected RNA-seq evidence to extract**
+  - Late/transition induction (becoming strongly DE at day 14–35 more than day 5–7)
+  - Positive association with TexSig (e.g., co-induced with inhibitory receptor genes in the same comparisons)
+- **Network/pathway context**
+  - Chronic stimulation–responsive TFs that reinforce exhaustion-like transcriptional programs.
+- **Opposing regulation logic**
+  - Inhibition is expected to shift transcription away from TexSig-high states during the day 14–35 window.
+
+#### (3) PRDM1 (BLIMP-1) — **Inhibition**
+- **Expected RNA-seq evidence to extract**
+  - Upregulated during day 14–35 with significant `padj`
+  - Sustained elevation at day 35/60
+- **Network/pathway context**
+  - Differentiation-associated TF linked to terminal/irreversible dysfunctional trajectories in chronic stimulation settings.
+- **Opposing regulation logic**
+  - If PRDM1 rises with the transition into aging-like dysfunction, inhibiting it is expected to preserve a less-terminal transcriptional state (lower AgingLikeScore trajectory downstream).
+
+#### (4) IRF4 / BATF — **Inhibition**
+- **Expected RNA-seq evidence to extract**
+  - Induction during transition window; co-variation with TexSig genes
+- **Network/pathway context**
+  - TF circuit often elevated with chronic activation and dysfunctional differentiation programs.
+- **Opposing regulation logic**
+  - Inhibiting this circuit (directly or indirectly) is predicted to reduce exhaustion-associated transcriptional reinforcement.
+
+---
+
+#### (5) TCF7 (TCF-1) — **Activation**
+- **Expected RNA-seq evidence to extract**
+  - Downregulation (negative log2FoldChange) emerging in day 14–35 comparisons
+  - Decreasing meanTPM across day 14 → 35 → 60
+- **Network/pathway context**
+  - Associated with maintaining less-differentiated/progenitor-like programs; conceptually counterbalances terminal dysfunction trajectories.
+- **Opposing regulation logic**
+  - Activating/restoring TCF7 when it drops is predicted to move the transcriptome **away from terminal exhaustion**, lowering ExhaustionScore and indirectly limiting aging-like escalation.
+
+#### (6) BACH2 — **Activation**
+- **Expected RNA-seq evidence to extract**
+  - Declines during day 14–35 with significant `padj`
+- **Network/pathway context**
+  - Transcriptional regulator associated with restraining terminal differentiation programs.
+- **Opposing regulation logic**
+  - Activation is predicted to counteract transition-window commitment toward aging-like/terminal states.
+
+---
+
+#### (7) PPARGC1A (PGC-1α; mitochondrial biogenesis/metabolic fitness) — **Activation**
+- **Expected RNA-seq evidence to extract**
+  - Decreasing meanTPM and/or significant negative log2FoldChange by day 21/35
+- **Network/pathway context**
+  - Links to metabolic capacity; metabolic collapse is a common co-feature of late dysfunction.
+- **Opposing regulation logic**
+  - If PPARGC1A drops as AgingLikeScore rises, activation is predicted to restore a more “fit” transcriptional program and blunt progression toward death-associated programs.
+
+#### (8) TFAM (mitochondrial maintenance) — **Activation**
+- **Expected RNA-seq evidence to extract**
+  - Downregulation during day 14–35 (especially if a broader OXPHOS/mitochondrial set declines at the same time)
+- **Network/pathway context**
+  - Mitochondrial gene expression and integrity support; a plausible counter to late stress/aging-like features.
+- **Opposing regulation logic**
+  - Activation is expected to oppose aging-like metabolic/stress trajectories.
+
+---
+
+### C3. Practical prioritization during the transition window (day 14–35)
+**Rank targets higher if:**
+1. They show the **largest and most transition-specific** DE effect sizes (day 21/35 strong; day 5/7 weak).
+2. They align consistently across multiple readouts:
+   - TexSig/AgingSig membership
+   - Program-score correlation (computed across days using `E(gene, day)` and the score trajectories)
+3. They sit in coherent pathway neighborhoods:
+   - TF-driven exhaustion circuitry (TOX/NR4A/PRDM1/IRF4/BATF)
+   - Metabolic fitness decline (PPARGC1A/TFAM)
+
+**Key limitation**
+- Bulk timepoint means may reflect changing **cell-state composition** rather than within-cell reprogramming. This is especially relevant for “aging-like” signals, which may arise from a subpopulation expanding over time.
+
+---
+
+## (D) Optional (Bonus): Therapeutic Mapping
+
+**Not executable from the provided materials alone.** The prompt specifies “using the provided drug–target dataset,” but the supplied analysis summary indicates that **no drug–target dataset is included** here.
+
+### If/when a drug–target table is provided (required inputs and outputs)
+**Inputs**
+- Drug–target interaction table: `(drug, target_gene, mechanism)`.
+
+**Procedure**
+1. Harmonize target names to match DEG gene symbols (e.g., TOX, NR4A3, PRDM1, PPARGC1A).
+2. Filter interactions by required direction:
+   - For inhibition targets: keep inhibitors/antagonists/negative modulators.
+   - For activation targets: keep agonists/activators/positive modulators.
+3. Output a ranked list by (i) mechanism match, (ii) specificity, (iii) development stage.
+
+**Limitations to report**
+- Many TF targets (e.g., TOX, PRDM1) are often not directly druggable with high specificity; feasible interventions may require indirect pathway modulation or engineered cell therapy approaches.
+- Systemic modulation risks off-target effects in other immune subsets; tumor-/T-cell–localized delivery may be necessary.
+
+---
+
+### Assumptions / Limitations (explicit)
+1. **Reference timepoint assumption:** DEG files are assumed to compare each day X against a common baseline (likely day 0). This must be verified from filenames/column headers.
+2. **MeanTPM-based scoring:** Program scores are computed at **timepoint mean** resolution unless replicate-level expression is available beyond the DEG summaries.
+3. **Transition window resolution:** Day 14–35 is the best-supported window given available timepoints; finer timing cannot be inferred without denser sampling.
+4. **No gene-level DEG results were provided in the summary:** all per-gene claims must be validated by extracting rows for each target gene from the DEG tables (log2FC/padj/meanTPM) using the rules specified above.

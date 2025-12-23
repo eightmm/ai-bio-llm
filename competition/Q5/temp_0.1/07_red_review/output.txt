@@ -1,0 +1,40 @@
+## Reliability Score
+- Score: 52
+- Rationale: The report provides a methodologically sophisticated framework with well-defined scoring procedures and explicit acknowledgment of data unavailability. However, the fundamental problem is that **no actual analysis was performed**—the entire document is a prospective protocol rather than completed results. While the analytical design is reasonable, the task explicitly required quantification, visualization, and identification of specific targets with RNA-seq evidence, none of which are delivered. The report's transparency about limitations is commendable but does not compensate for the absence of concrete findings.
+
+## Critiques / Limitations / Risks (in priority order)
+
+1. **Critical: No actual results delivered despite task requirements**
+   - Task (A) requires "Visualize and describe how these scores change over time"—no visualization or description of actual score trajectories is provided.
+   - Task (B) requires identification of "a key transition window"—the report only describes *how* to identify one, not *which* window was identified.
+   - Task (C) requires proposing targets with "RNA-seq–based evidence"—candidate genes are listed as "mechanistically justified candidates" to be "confirmed," not as validated findings.
+
+2. **Data availability claim is inconsistent with problem framing**
+   - The problem states data files are "provided," and the report itself references specific filenames (e.g., `Q5.maryphilip_metadata.csv`, `L5 vs E5`). The claim that "no DEG CSVs were included" appears to be an operational failure rather than a true data absence, yet the report proceeds as if this justifies delivering only a protocol.
+
+3. **Scoring methodology has unaddressed statistical limitations**
+   - The proposed median-based scoring using signed significance weights (S_g) conflates effect size and statistical power. Genes with modest log2FC but high read counts will dominate over biologically large effects in low-expression genes.
+   - No power analysis or sensitivity testing is proposed for the small number of contrasts (6-7 comparisons) used to compute correlations.
+
+4. **Transition window criteria risk circularity despite stated intent to avoid it**
+   - The "AgingLikeUp" set is defined using late contrasts (L21/L35/L60 vs L14), then the transition window is identified by when AgingLikeScore increases. This partially circular logic is acknowledged but not resolved—the score will mechanically increase at the contrasts used to define the signature.
+
+5. **"Aging-like" vs "generic stress" distinction remains operationally weak**
+   - The specificity filter (excluding early-exhaustion genes) addresses overlap with exhaustion but does not distinguish aging-specific programs from generic late-stage cellular stress, hypoxia, or metabolic dysfunction. The reliance on GenAge/MSigDB membership is necessary but not sufficient for biological specificity.
+
+6. **Target gene proposals lack dataset-specific validation**
+   - TOX, NR4A family, HIF1A, TFAM are presented as "candidates to test" based on prior literature, not as targets emerging from this dataset's analysis. This inverts the task requirement for "RNA-seq–based evidence" supporting each target.
+
+7. **Death score proxy is weakly justified**
+   - Using apoptosis pathway gene expression as a "death proxy" conflates transcriptional activation of death programs with actual cell death. Bulk RNA-seq from dying cells may show reduced signal (dead cells don't contribute RNA), creating an interpretive paradox not addressed.
+
+8. **Reproducibility contingent on unspecified preprocessing decisions**
+   - The TPM threshold (≥1) and padj floor (1e-300) are arbitrary choices without sensitivity analysis. Different thresholds could substantially alter signature composition and downstream scores.
+
+9. **Optional therapeutic mapping section is essentially empty**
+   - While acknowledging the drug-target dataset was "not provided," the task explicitly mentions it as "provided." The section offers only generic guidance rather than any mapping attempt.
+
+## Final Short Summary to Attach
+
+**Red-Team Assessment Summary:**
+This report delivers a detailed analytical protocol rather than completed results. Despite sophisticated methodological design and transparent acknowledgment of limitations, it fails to satisfy core task requirements: no scores were computed, no transition window was identified, and no targets were validated with dataset-specific evidence. The proposed scoring approach has statistical limitations (conflation of effect size and power, potential circularity in transition detection), and the aging-like specificity filter may not adequately distinguish from generic stress responses. Target gene proposals rely on prior mechanistic knowledge rather than emerging from the provided data. The report would require full execution with actual DEG tables to meet the assignment's evidentiary standards. Current reliability is limited to the soundness of the proposed framework, not to any scientific conclusions about T cell exhaustion-aging trajectories or rejuvenation targets.

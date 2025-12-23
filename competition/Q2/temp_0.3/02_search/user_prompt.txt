@@ -1,0 +1,170 @@
+# Problem Context
+You are given structured information describing a scientific research problem.
+
+## Problem Description
+Problem 2. [Predicting Cellular Aging and Disease Progression from TERRA Modification Patterns]
+
+TERRA (Telomeric Repeat-containing RNA) plays a critical role in regulating telomere length, replication stability, and genome integrity. Emerging evidence suggests that specific RNA modification patterns—such as m6A, pseudouridine, and m5C—on TERRA molecules may serve as early molecular indicators of cellular aging and disease progression.
+In this problem, you are asked to design an AI-based multimodal predictive framework that infers cellular aging status or disease progression probability from TERRA modification patterns, and explicitly visualizes the functional contribution of individual RNA modifications.
+
+Objective
+Design an integrated predictive framework that:
+1.	Predicts cellular aging or disease progression probability from TERRA-related multi-omics data
+2.	Quantifies and visualizes the functional contribution of individual RNA modification types
+3.	Provides mechanistic interpretability linking molecular features to biological pathways
+
+Task
+You must propose a framework that includes all three modules (A–C) described below.
+For each module, clearly specify:
+1.	Data types and AI tools used, with scientific justification
+2.	Alternative design choices and why they were not selected
+3.	How the module’s outputs feed into the next stage
+
+Module A: Multimodal Data Integration and Normalization
+Integrate heterogeneous data sources related to TERRA biology into a unified representation.
+
+Data Modalities (examples)
+•	Transcriptomic data
+o	Total RNA-seq
+o	Single-cell RNA-seq
+•	Epigenetic / RNA modification data
+o	RNA modification maps (e.g., m6A, Ψ, m5C)
+o	MeRIP-seq / miCLIP
+o	ChIP-seq related to telomere-associated factors
+•	Imaging data
+o	Telomere FISH
+o	TERRA RNA-FISH
+o	Super-resolution imaging (STED / SIM)-derived telomere morphology metrics
+
+Module B: Predictive Model Design
+Design a model that transforms the integrated multimodal representation into aging or disease probability predictions.
+
+Module C: Model Interpretation and Evaluation
+Explain how model predictions are interpreted and evaluated. 
+
+
+## Core Objective
+Design an AI-based multimodal predictive framework that integrates TERRA-related multi-omics and imaging data to predict cellular aging status or disease progression probability, while quantifying/visualizing the functional contribution of specific RNA modification types (e.g., m6A, pseudouridine, m5C) and providing mechanistic interpretability linking predictive molecular features to biological pathways.
+
+# Task Details
+
+
+## Suggested Direction
+
+
+---
+
+# Task
+Using the information above, generate a structured scientific report that addresses the stated problem by synthesizing relevant prior research.
+
+
+[List of Sub-Problems to Address]
+- [A_Multimodal_Integration_Normalization] Module A: Multimodal Data Integration and Normalization for TERRA Biology
+  Description: Propose a multimodal integration strategy that converts heterogeneous TERRA-related datasets into a unified representation suitable for downstream prediction. Explicitly cover: (i) which data modalities are used (bulk RNA-seq, scRNA-seq, RNA modification maps/MeRIP-seq/miCLIP, telomere-factor ChIP-seq, telomere/TERRA FISH and super-resolution morphology metrics), (ii) modality-specific preprocessing and normalization, (iii) feature construction for RNA modification patterns on TERRA (type, site/region, stoichiometry/peak strength, reproducibility), (iv) batch/technology/site correction, missing-modality handling, and (v) how the integrated representation is packaged to feed Module B. Also include alternative integration designs that were considered but not selected, with rationale.
+  Approach: Data modeling goal: learn a shared latent space plus modality-specific factors that preserve (a) global cell state/aging signals, and (b) explicit RNA modification-type signals on TERRA.
+
+1) Modality-specific preprocessing
+- Bulk RNA-seq: standard QC, normalization (e.g., TMM/DESeq2 size factors), transform (vst/logCPM), remove confounders.
+- scRNA-seq: QC (mito %, doublets), normalization (SCTransform / scran), HVGs; integrate across batches with Harmony/scVI; optionally use scArches for reference mapping.
+- RNA modification maps (m6A/Ψ/m5C; MeRIP-seq/miCLIP): peak calling + site-level confidence; derive features per sample/cell: (i) modification burden on TERRA, (ii) per-site/region occupancy, (iii) motif/context features, (iv) enzyme expression (writers/erasers/readers) from RNA-seq as auxiliary constraints.
+- ChIP-seq (telomere-associated factors): peak quantification in relevant genomic/telomeric-adjacent regions; create factor activity scores; link peaks to genes (ABC model-style links) and to pathway scores.
+- Imaging (telomere FISH / TERRA RNA-FISH / STED/SIM metrics): extract quantitative morphology features (telomere count, intensity, co-localization, clustering, length proxies, DDR foci co-localization). Use deep feature extractors (Vision Transformer or CNN) trained with self-supervision (DINOv2-style) + classical segmentation (CellProfiler/StarDist) for robust measurements.
+
+2) Integration strategy (recommended)
+- Use a multimodal latent variable model and/or multimodal transformer:
+  - For single-cell multi-omics style integration: scVI/totalVI-like approach extended with custom ‘modification’ and ‘imaging’ encoders; learn shared latent z and modality-specific latents.
+  - For sample-level multimodal: a Mixture-of-Experts (MoE) or multimodal transformer with cross-attention over modality tokens (RNA expression token set, modification token set, ChIP token set, imaging token set).
+- Missing modality handling: train with modality dropout; use product-of-experts or gated fusion so predictions remain valid when a modality is absent.
+- Batch correction: include batch covariates in latent models; adversarial domain adaptation (gradient reversal) when integrating multi-center cohorts.
+
+3) Explicit representation of RNA modification types (to enable Module C attribution)
+- Encode each modification type as a separate channel/token family (m6A, Ψ, m5C) with:
+  - Site/region embedding (telomeric repeat position bins; subtelomeric vs telomeric bins; transcript isoform context if available)
+  - Signal strength/stoichiometry embedding
+  - Confidence embedding (peak/site posterior probability)
+- Keep a “type-level summary vector” per modification to facilitate attribution and visualization later.
+
+4) Alternative designs (and why not selected)
+- Simple concatenation after per-modality PCA: easy but brittle with missing modalities, batch effects, and yields weak interpretability of modification-type contributions.
+- MOFA+ only: strong for factorization but less direct for end-to-end supervised prediction and less flexible for imaging embeddings.
+- Late fusion of separate unimodal predictors: robust but reduces ability to learn cross-modal interactions (e.g., modification × telomere morphology).
+
+5) Output handoff to Module B
+- Deliver a unified object per sample/cell: (i) shared latent embedding z_shared, (ii) modality-specific embeddings, and (iii) explicit modification-type embeddings/summaries; plus metadata (batch, donor, timepoint). Provide train/val/test splits with leakage control by donor/patient.
+
+- [B_Predictive_Model_Design] Module B: Multimodal Predictive Model for Aging Status or Disease Progression
+  Description: Design a predictive model that ingests the integrated representation from Module A and outputs cellular aging status or disease progression probability (and optionally time-to-event). Specify: (i) prediction targets and labeling schemes (binary/multiclass/regression/survival), (ii) model architecture (fusion strategy, encoders, temporal components if longitudinal), (iii) training objectives and regularization, (iv) how the model preserves separability of individual RNA modification types for attribution, and (v) alternative model choices that were considered but not selected, with rationale. Explicitly describe how outputs are passed to Module C for interpretation and evaluation.
+  Approach: 1) Define prediction setting
+- Classification: young vs aged; disease stage; responder vs non-responder.
+- Regression: continuous “aging score” (e.g., epigenetic age, senescence index).
+- Survival / progression: time-to-progression with censoring (DeepSurv / Cox loss / discrete-time survival).
+
+2) Recommended architecture (end-to-end multimodal + interpretable)
+- Multimodal Transformer with cross-attention:
+  - Inputs: tokens for (a) gene expression (gene-set tokens or pathway-level tokens to reduce dimensionality), (b) modification-type tokens (m6A/Ψ/m5C with site/region sub-tokens), (c) ChIP factor-activity tokens, (d) imaging embedding tokens.
+  - Fusion: cross-attention layers to learn interactions (e.g., m6A-on-TERRA × telomere morphology).
+  - Head: multitask output heads (classification + calibration; optional survival head).
+- Gated Mixture-of-Experts (MoE) variant:
+  - Separate experts per modality + a gating network conditioned on sample context; preserves interpretability by reporting gating weights per modality/modification type.
+
+3) Objectives and constraints to emphasize RNA modification signal
+- Primary loss: cross-entropy / MSE / Cox partial likelihood.
+- Auxiliary losses:
+  - Modality reconstruction (to keep latent aligned with biology; helps missing modalities).
+  - Contrastive alignment across modalities (CLIP-style) to ensure consistent sample embeddings.
+  - Sparsity/structured penalties on modification-type channels to encourage type-level separability (enables clean attributions in Module C).
+- Calibration: temperature scaling / isotonic regression on validation.
+- Uncertainty: deep ensembles or MC dropout; output credible intervals for progression probability.
+
+4) Alternative designs (and why not selected)
+- Classic ML (Random Forest/XGBoost) on concatenated features: strong baselines but limited cross-modal interaction learning and weaker instance-level interpretability for high-dimensional site-level modification inputs.
+- Single-modality models (RNA-only, imaging-only): miss key mechanistic coupling between TERRA modifications and telomere morphology.
+- Pure attention scores as explanation: attention alone is not a reliable attribution; require dedicated attribution methods in Module C.
+
+5) Output handoff to Module C
+- Provide: predicted probabilities/survival risk scores; intermediate embeddings; per-token attention maps/gating weights; and logits for attribution. Log model versions, hyperparameters, and ablation results to support interpretation and evaluation.
+
+- [C_Interpretation_Evaluation] Module C: Attribution, Mechanistic Interpretability, and Evaluation
+  Description: Specify how to interpret model predictions and rigorously evaluate performance. Must include: (i) quantification and visualization of the functional contribution of individual RNA modification types (m6A, Ψ, m5C) and, where possible, their site/region contributions on TERRA, (ii) mechanistic interpretation linking features to biological pathways and telomere processes, (iii) evaluation protocol (metrics, validation design, robustness checks, ablations), and (iv) alternative interpretation/evaluation choices considered but not selected, with rationale. Explicitly describe how interpretation outputs close the loop for model refinement.
+  Approach: 1) Contribution of individual RNA modification types (global + local)
+- Local (per-sample) attributions:
+  - Integrated Gradients / DeepLIFT on modification-type tokens and site/region sub-tokens.
+  - SHAP (model-specific approximations) for tabular summaries (e.g., per-type burden features).
+  - Counterfactual edits: simulate increasing/decreasing m6A (or Ψ/m5C) burden at specific TERRA regions and measure prediction delta (requires a constrained perturbation model so edits remain biologically plausible).
+- Global attributions:
+  - Aggregate absolute attributions across cohort to rank modification types and regions.
+  - Interaction attributions: quantify synergy terms (e.g., m6A × telomere clustering metrics) via pairwise Shapley interaction indices or attention-informed interaction probes.
+- Visualization deliverables:
+  - Stacked bar/violin plots of per-type contribution to risk.
+  - Heatmaps over TERRA region bins showing site/region-level importance per modification type.
+  - Patient/cell “explanation cards” summarizing top contributing features and uncertainty.
+
+2) Mechanistic interpretability (link to pathways and telomere biology)
+- Map expression/ChIP features to pathways:
+  - Compute pathway activities (GSEA/ssGSEA, PROGENy) and correlate with model-attributed features.
+  - Use network propagation on Reactome/KEGG-style pathway graphs to connect attributed genes/factors to telomere maintenance, DNA damage response, replication stress, senescence programs.
+- Hypothesis generation:
+  - Identify whether high-risk predictions align with known modules: shelterin complex regulation, ATR/ATM signaling, R-loop resolution, RNA processing, m6A reader recruitment, telomerase activity proxies.
+- Optional causal layer (if interventions exist):
+  - Causal discovery / invariant risk minimization across cohorts; triangulate with perturbation data (knockdown of writers/erasers/readers) if available.
+
+3) Evaluation protocol
+- Predictive performance:
+  - Classification: AUROC, AUPRC, balanced accuracy, calibration (ECE/Brier), decision curves.
+  - Survival: C-index, time-dependent AUC, calibration curves.
+- Validation design:
+  - Strict split by donor/patient and site; external validation cohort if available.
+  - Longitudinal: forward-chaining splits to avoid temporal leakage.
+- Robustness checks:
+  - Missing-modality stress tests; batch shift tests; adversarial perturbations on imaging; noise injection on modification maps.
+  - Ablations: remove each modality; remove each modification type (m6A-only vs Ψ-only etc.); remove site-level detail to test necessity.
+
+4) Alternative interpretation/evaluation choices (and why not selected)
+- Reliance on attention weights alone: not sufficient as causal/attribution evidence.
+- Only reporting global feature importance: misses individualized explanations critical for disease progression inference.
+- Only internal cross-validation: insufficient under batch/site shifts common in multi-omics and imaging.
+
+5) Feedback to earlier modules
+- Use attribution stability to refine Module A feature engineering (e.g., re-bin TERRA regions, improve peak confidence weighting).
+- Use failure case analyses (miscalibrated subgroups) to adjust Module B objectives (domain adaptation, recalibration, subgroup-aware training).
+

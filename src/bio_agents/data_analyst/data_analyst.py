@@ -38,7 +38,8 @@ class DataAnalystAgent:
         self,
         use_planner: bool = True,
         use_summarizer: bool = True,
-        output_format: str = 'natural_language'
+        output_format: str = 'natural_language',
+        temperature: float = None,
     ):
         """
         Initialize DataAnalystAgent
@@ -47,11 +48,14 @@ class DataAnalystAgent:
             use_planner: Enable Stage 1 Planner LLM (default: True)
             use_summarizer: Enable Stage 3 Summarizer LLM (default: True)
             output_format: Output format - 'natural_language' or 'json' (default: 'natural_language')
+            temperature: Temperature for LLM calls (default: Config.DEFAULT_TEMPERATURE)
         """
+        self.temperature = temperature
+
         # Initialize components using global Config
         self.file_resolver = FileResolver(Config.DATA_DIR)
         self.data_loader = DataLoader()
-        self.code_executor = CodeExecutor()  # No longer takes config arg
+        self.code_executor = CodeExecutor(temperature=temperature)
 
         # 3-Stage Pipeline configuration
         self.use_planner = use_planner
@@ -60,12 +64,12 @@ class DataAnalystAgent:
 
         # Initialize Stage 1: Planner LLM
         if use_planner:
-            self.planner = PlannerLLM()  # No longer takes config arg
+            self.planner = PlannerLLM(temperature=temperature)
             logger.info("Stage 1 (Planner LLM) enabled")
 
         # Initialize Stage 3: Summarizer LLM
         if use_summarizer:
-            self.summarizer = SummarizerLLM()  # No longer takes config arg
+            self.summarizer = SummarizerLLM(temperature=temperature)
             logger.info("Stage 3 (Summarizer LLM) enabled")
 
         logger.info(f"DataAnalystAgent initialized with data_dir: {Config.DATA_DIR}")
@@ -274,14 +278,25 @@ class DataAnalystAgent:
         resolve_time = time.time() - resolve_start
 
         if not resolved_files:
-            logger.error(f"[File Resolution] ✗ FAILED: Could not resolve any files")
-            logger.error(f"[File Resolution]   DB_list: {combined_db_list}")
-            logger.error(f"[File Resolution]   Data directory: {self.file_resolver.data_dir}")
-            return {
-                'status': 'error',
-                'reason': f'Could not resolve files from DB_list: {combined_db_list}',
-                'problem_id': brain_output.get('problem_id', 'unknown')
-            }
+            logger.warning(f"[File Resolution] ⚠ Could not resolve files from DB_list: {combined_db_list}")
+            logger.info(f"[File Resolution] Attempting fallback: scanning problem directory for all data files...")
+
+            # Fallback: Get all data files in the problem directory
+            resolved_files = self._get_all_data_files_in_directory(self.file_resolver.data_dir)
+
+            if resolved_files:
+                logger.info(f"[File Resolution] ✓ Fallback successful: found {len(resolved_files)} data files")
+                for idx, file_info in enumerate(resolved_files, 1):
+                    logger.info(f"[File Resolution]   [{idx}] {file_info['name']} (fallback)")
+            else:
+                logger.error(f"[File Resolution] ✗ Fallback FAILED: No data files found in directory")
+                logger.error(f"[File Resolution]   DB_list: {combined_db_list}")
+                logger.error(f"[File Resolution]   Data directory: {self.file_resolver.data_dir}")
+                return {
+                    'status': 'error',
+                    'reason': f'Could not resolve files from DB_list and no data files found in directory',
+                    'problem_id': brain_output.get('problem_id', 'unknown')
+                }
         
         logger.info(f"[File Resolution] ✓ Resolved {len(resolved_files)} files in {resolve_time:.2f}s")
         for idx, file_info in enumerate(resolved_files, 1):
@@ -562,6 +577,124 @@ class DataAnalystAgent:
             return False
         except Exception:
             return False
+
+    def _get_all_data_files_in_directory(self, directory: Path) -> List[Dict[str, str]]:
+        """
+        Fallback: Get all supported data files in the problem directory.
+        Excludes pipeline directories (01_brain ~ 08_answer) and problem/answer text files.
+        If no files found in the current directory, also checks parent directory.
+
+        Args:
+            directory: The problem directory to scan
+
+        Returns:
+            List of file info dicts with 'path', 'name', and 'match_type' keys
+        """
+        # Directories to exclude (pipeline output directories)
+        excluded_dirs = {
+            '01_brain', '02_search', '03_data_analysis', '04_blue_draft',
+            '05_red_critique', '06_bluex_revision', '07_red_review', '08_answer'
+        }
+
+        # Supported data file extensions
+        supported_extensions = {
+            '.csv', '.tsv', '.txt', '.tab', '.xlsx', '.xls', '.parquet',
+            '.md', '.markdown',
+            '.fa', '.fasta', '.fna', '.faa', '.ffn', '.frn',
+            '.fq', '.fastq',
+            '.gz', '.bam', '.sam', '.vcf', '.bed', '.pod5'
+        }
+
+        data_files = self._scan_directory_for_data_files(directory, excluded_dirs, supported_extensions)
+
+        # If no files found, try parent directory (for temp_* subdirectory case)
+        if not data_files and directory.parent.exists():
+            logger.info(f"[Fallback] No data files in {directory.name}, checking parent directory: {directory.parent}")
+            data_files = self._scan_directory_for_data_files(directory.parent, excluded_dirs, supported_extensions)
+            if data_files:
+                logger.info(f"[Fallback] ✓ Found {len(data_files)} data files in parent directory")
+
+        return data_files
+
+    def _scan_directory_for_data_files(
+        self,
+        directory: Path,
+        excluded_dirs: set,
+        supported_extensions: set
+    ) -> List[Dict[str, str]]:
+        """
+        Scan a single directory for data files.
+
+        Args:
+            directory: Directory to scan
+            excluded_dirs: Set of directory names to exclude
+            supported_extensions: Set of supported file extensions
+
+        Returns:
+            List of file info dicts
+        """
+        data_files = []
+
+        try:
+            for item in directory.iterdir():
+                # Skip excluded directories (including temp_* pattern)
+                if item.is_dir():
+                    if item.name in excluded_dirs or item.name.startswith('temp_'):
+                        logger.debug(f"[Fallback] Skipping pipeline/temp directory: {item.name}")
+                        continue
+                    # Optionally scan subdirectories (non-pipeline)
+                    for subitem in item.iterdir():
+                        if subitem.is_file():
+                            if self._is_valid_data_file(subitem, supported_extensions):
+                                data_files.append({
+                                    'path': str(subitem),
+                                    'name': subitem.name,
+                                    'match_type': 'directory_fallback'
+                                })
+                    continue
+
+                # Process files in the root directory
+                if item.is_file():
+                    if self._is_valid_data_file(item, supported_extensions):
+                        data_files.append({
+                            'path': str(item),
+                            'name': item.name,
+                            'match_type': 'directory_fallback'
+                        })
+        except Exception as e:
+            logger.error(f"[Fallback] Error scanning directory {directory}: {e}")
+
+        return data_files
+
+    def _is_valid_data_file(self, file_path: Path, supported_extensions: set) -> bool:
+        """
+        Check if a file is a valid data file (not problem/answer text files).
+
+        Args:
+            file_path: Path to the file
+            supported_extensions: Set of supported file extensions
+
+        Returns:
+            True if the file is a valid data file, False otherwise
+        """
+        name = file_path.name.lower()
+        suffix = file_path.suffix.lower()
+
+        # Exclude problem*.txt and answer*.txt files
+        if suffix == '.txt':
+            if name.startswith('problem') or name.startswith('answer'):
+                logger.debug(f"[Fallback] Skipping problem/answer file: {file_path.name}")
+                return False
+
+        # Check if extension is supported
+        if suffix in supported_extensions:
+            return True
+
+        # Handle double extensions like .fastq.gz
+        if name.endswith('.fastq.gz') or name.endswith('.fq.gz'):
+            return True
+
+        return False
 
     def _generate_integration_code(
         self,

@@ -1,0 +1,29 @@
+## Reliability Score
+- Score: 72
+- Rationale: The report demonstrates strong domain knowledge and provides logically coherent diagnoses for each incident that align well with the observations. However, the analysis lacks direct engagement with the actual protocol.md content (no specific protocol defects are cited), and the data analysis section (1-6) is entirely procedural without executed results—no actual counts_raw.csv, counts_dedup.csv, histogram, or HTML report are produced. The answer conflates "what should be done" with "what was done," undermining the deliverable requirements. Cross-referencing between incidents is reasonable but occasionally speculative without protocol text evidence.
+
+## Critiques / Limitations / Risks (in priority order)
+
+1. **Failure to deliver required computational outputs (Section 1-6)**: The problem explicitly requires `counts_raw.csv`, `counts_dedup.csv`, a histogram plot, and an HTML report. The answer provides only a procedural outline and admits it "cannot truthfully print the final numeric arrays here without executing alignment/counting." This is a critical gap—the deliverables are not produced, violating explicit task requirements.
+
+2. **No direct citation of protocol.md defects**: The problem states "some are protocol/document defects present in the originally distributed protocol." The answer never quotes or references specific problematic language from protocol.md. All diagnoses are inferred from incident observations alone, leaving the "protocol defect vs. execution mistake" distinction unsubstantiated.
+
+3. **Speculative linkage between incidents without evidence**: Claims such as "Incident B strongly reinforces Incident A" or "Incident D links to Incident E via oligo issues" are plausible but not grounded in explicit cross-incident data or shared operator/batch identifiers. The report assumes correlations that may not exist in the provided artifacts.
+
+4. **Coordinate convention stated but not validated against reference.fa**: The answer specifies 1-based transcript coordinates but does not confirm the actual length L of the reference or verify that the coordinate system matches the reference file format (e.g., 0-based BED vs. 1-based GFF). This could introduce off-by-one errors in reproducibility.
+
+5. **UMI extraction pattern not verified against protocol.md**: The answer discusses UMI extraction extensively but does not confirm the actual UMI position/length from the protocol. If the protocol specifies a different structure, the proposed extraction logic may be incorrect.
+
+6. **Periodicity analysis caveated but not operationalized**: The answer acknowledges that CDS boundaries may not be annotated and proposes heuristic ORF inference, but does not specify how to handle ambiguous cases (e.g., multiple candidate ORFs, non-AUG starts). This leaves the periodicity QC underspecified.
+
+7. **No quantitative thresholds for QC gates**: Recommendations like "A260/230 in an acceptable range" or "UMI complexity plausible" lack operational definitions. Without numeric cutoffs, these gates are not actionable or reproducible.
+
+8. **Assumption of single-strand alignment for transcript reference**: The answer briefly mentions handling minus-strand alignments but assumes this is "unlikely for a transcript-only reference." If the reference contains antisense features or if reads derive from contaminating antisense RNA, this assumption could bias results.
+
+9. **No discussion of read quality filtering**: The answer does not address base quality thresholds for alignment or UMI extraction, which could affect both alignment accuracy and UMI diversity estimates.
+
+10. **Incident E diagnosis relies heavily on paperwork diff**: While the oligo specification mismatch is strongly supported, the answer does not propose a computational check that could be performed on existing FASTQs to distinguish "wrong oligo identity" from "wrong oligo chemistry" (e.g., expected vs. observed adapter sequence alignment).
+
+## Final Short Summary to Attach
+
+The report provides scientifically reasonable diagnoses for all five incidents and a coherent QC framework, but critically fails to produce the required computational deliverables for Section 1-6. Protocol-level defects are not directly cited from protocol.md, weakening the distinction between document errors and execution mistakes. Quantitative thresholds for proposed QC gates are absent, limiting reproducibility. The cross-incident linkages, while plausible, are not rigorously evidenced. Overall, the answer reflects strong conceptual understanding but incomplete execution against the stated requirements.

@@ -1,0 +1,482 @@
+## 1-1. Incident A
+
+### Most likely root cause(s) (ranked)
+**A1) Carryover of cleanup contaminants (salts/solvents; commonly ethanol/chaotropes) into downstream enzymatic steps.**  
+Supported by the observations:
+- **Low A260/230** (when measured) is consistent with salt/solvent/chaotrope carryover.
+- **Poor qPCR amplification efficiency + high Ct variance** fits enzyme inhibition (polymerase/RT), not just low template.
+- **Main peak + elevated baseline/smear + occasional small peaks** is consistent with mixed products and/or inhibition-driven “messiness.”
+- **Repeat cleanup sometimes improves** points to partially removable inhibitors/contaminants.
+
+**A2) Operator-sensitive SPRI/bead cleanup execution differences** (bead ratio errors, incomplete ethanol removal, bead carryover, over/under-drying).  
+This often manifests as run-to-run instability and partially reversible inhibition.
+
+**A3) Secondary contributors (less directly supported by the observations)**
+- Over-amplification (too many PCR cycles) can create heteroduplex/smear, but doesn’t explain low A260/230.
+- Upstream RNA degradation can broaden distributions, but would not be expected to be “sometimes rescued” by repeating cleanup.
+
+### Next steps to confirm (no new wet-lab required)
+1) **Protocol-forensics audit (tie to the actual `protocol.md` step numbers):**  
+   For each cleanup in `protocol.md`, check whether it explicitly specifies:
+   - ethanol concentration and number of washes,
+   - magnet dwell times,
+   - *how* to remove residual ethanol (including droplets on tube walls),
+   - an explicit air-dry endpoint and time window,
+   - whether eluate should be transferred off beads into a fresh tube.
+2) **Correlate failures with handling notes and timestamps** (dry time, aspiration technique, any quick-spin, whether beads were disturbed, etc.).
+3) **Re-examine qPCR amplification curves** (not just Ct): inhibited reactions typically show flattened/abnormal amplification kinetics and high replicate divergence.
+
+### Fixes (protocol + execution)
+- **Make cleanup steps unambiguous and “operator-proof” in `protocol.md`:**
+  - Explicitly specify ethanol washes (count, concentration, volumes), and magnet times.
+  - Add a **residual-ethanol removal step** (e.g., on-magnet fine-tip aspiration of droplets; optionally quick-spin → back to magnet → aspirate collected droplet).
+  - Define a **drying endpoint** (“no visible ethanol; beads not cracked”) and a bounded dry-time window.
+  - Add “**transfer eluate to a new tube**” to reduce bead carryover.
+- **QC gates (treat as heuristics to standardize troubleshooting; labs may tune):**
+  - Flag suspect inhibition/contamination when **A260/230 is notably low** (e.g., <~1.5–1.8), especially if qPCR efficiency is poor.
+  - Flag suspect inhibition when qPCR replicate variability is high (e.g., Ct SD >~0.5) and curve shape is abnormal.
+
+---
+
+## 1-2. Incident B
+
+### Most likely root cause(s)
+**Residual ethanol carryover from SPRI/bead cleanup inhibiting PCR** (primary).  
+Supported by the direct rescue:
+- Extending bead air-dry and carefully removing residual ethanol restores normal amplification without reagent changes.
+
+This is strongly operator-dependent (aspiration technique, patience during drying, removing droplets from tube walls).
+
+### Next steps to confirm (no new wet-lab required)
+1) **Operator-by-operator technique audit** focused on the cleanup step immediately upstream of PCR in `protocol.md`:
+   - magnet dwell time, aspiration details, bead disturbance, drying time, whether a quick-spin was done.
+2) **PCR curve review** to distinguish inhibition (late/flat curves) from structural library failures (no amplification regardless of cleanup).
+
+### Fixes (robust to operator variability)
+Add a short standardized checklist to `protocol.md`:
+1) On magnet, remove supernatant; then use a smaller tip to remove **residual droplets**.  
+2) Dry beads within a specified window; proceed only when **no visible ethanol** remains.  
+3) Optional robustness step: **quick-spin → magnet → remove droplet**.  
+4) Elute and **transfer eluate off beads** into a fresh tube.
+
+Add a simple **operator qualification** practice: first run by a new operator is observed/checked by an experienced operator (no protocol changes needed).
+
+---
+
+## 1-3. Incident C
+
+### Most likely root cause(s) (ranked)
+**C1) Under-digestion / incomplete nuclease digestion** and/or **C2) overly broad size selection** are most likely because:
+- Protected-fragment QC shows **broad distribution with substantial material >40 nt**.
+- Sequencing QC shows **weak/absent 3-nt periodicity** and **increased mapping outside CDS**, consistent with heterogeneous/long fragments and contaminating non-footprint RNA fragments.
+- Yield is not obviously low, so the failure is interpretability/footprint fidelity, not gross loss.
+
+**C3) Inclusion of disomes/polysomes** could contribute to longer protected fragments, but the primary actionable issue remains excessive long-fragment carryover.
+
+### Next steps to confirm (computational + protocol audit; no new wet-lab required)
+1) From sequencing (after trimming): **plot insert/read-length distribution** to confirm the fraction of long fragments (e.g., >40 nt).  
+2) **Periodicity stratified by read length:** any residual 3-nt periodicity often concentrates in a canonical footprint length bin; long reads dilute signal.  
+3) Audit `protocol.md`:
+   - Digestion step: is nuclease dose specified **relative to input** (units per µg RNA/lysate), with time/temperature/mixing?
+   - Size selection: is the nt window explicit and narrow; are markers/instructions unambiguous?
+
+### Fixes (protocol clarity + QC gates)
+- **Tighten digestion specification**: explicitly state nuclease dose relative to input, incubation time/temperature, and mixing requirement.  
+- **Enforce narrow size selection**: define a tight footprint nt range and clear instructions for gel cut (markers, what to exclude).
+
+**QC gates (heuristics to standardize decisions)**
+- Flag libraries if a substantial fraction of trimmed reads are **>40 nt** (e.g., >~15–20%, tuned to organism/protocol intent).  
+- Require a length-distribution plot and (where CDS annotation exists) periodicity-by-length before declaring “successful Ribo-seq.”
+
+---
+
+## 1-4. Incident D
+
+### Most likely root cause(s) (ranked)
+**D1) Incorrect UMI extraction configuration (wrong position/length/orientation), causing constant adapter bases to be treated as “UMIs.”**  
+This directly explains:
+- Extremely small observed UMI diversity,
+- heavily concentrated UMI histogram,
+- deduplication collapsing the majority of reads,
+- noisy downstream quantification sensitive to pipeline changes.
+
+**D2) UMI-containing oligo synthesis/specification issue** (Ns not truly randomized, wrong oligo supplied) remains plausible, but should be tested after D1 because D1 is purely computational to confirm.
+
+### Next steps to confirm (computational; uses provided FASTQ)
+1) **Verify read structure against `protocol.md` and raw read prefixes**
+   - Search for expected constant adapter motifs flanking the UMI.
+   - If the purported “UMI” region is constant, extraction coordinates are wrong (or the oligo is wrong).
+2) **Compute UMI complexity metrics**
+   - Per-position base composition and entropy across UMIs.
+   - UMI frequency histogram (top UMIs and their fractions).
+
+### Fixes (protocol + pipeline must match)
+- Add a **read-structure diagram** to `protocol.md` (where the UMI is located: R1 vs index; UMI length; flanking constant sequence; orientation).
+- Include the **exact UMI extraction command/pattern** in the distributed workflow bundle.
+
+**QC gates (heuristics)**
+- Flag low UMI complexity if per-position entropy is low and/or a few UMIs dominate an implausibly large fraction of reads.  
+- Flag over-collapsing if unique UMIs saturate at a tiny number very early relative to read count.
+
+---
+
+## 1-5. Incident E
+
+### Most likely root cause(s) (ranked)
+**E1) Adapter/linker oligo specification or shipment defect** (wrong molecule type DNA vs RNA, missing required terminal modifications, inadequate purification), causing ligation failure.  
+Strongly supported by:
+- **No gel shift after ligation** (product not forming),
+- final library dominated by **short artifacts**,
+- **enzyme replacement doesn’t rescue** (points away from enzyme failure),
+- sequencing reads enriched for **primer/adapter-like sequence**, with **expected linker-specific prefix** rare,
+- shipment paperwork differs in molecule type/modifications/purification.
+
+**E2) Oligo handling/resuspension errors or degraded oligo** could contribute, but the paperwork mismatch + motif evidence makes E1 most likely.
+
+### Next steps to confirm (no new wet-lab required)
+1) **Audit `protocol.md` oligo requirements vs new shipment paperwork**:
+   - Confirm the protocol explicitly requires the correct molecule type, exact sequence, required 5′/3′ chemistry, and purification grade.
+2) **Motif check using existing FASTQ**:
+   - Quantify fraction of reads containing the expected linker/adapter motif at the expected location. Near-absence supports ligation/library-structure failure.
+
+### Fixes (prevent recurrence)
+- Make oligo specification in `protocol.md` **non-ambiguous** (exact sequence + exact chemistry + purification grade).  
+- Add a **receiving QC checklist**: do not proceed unless CoA matches the protocol-required chemistry.  
+- Make the post-ligation gel check a **hard stop**: if no shifted band, do not proceed to RT/PCR.
+
+---
+
+## 1-6. Preliminary data analysis
+
+### Core limitation (what can and cannot be asserted here)
+The prompt requires generating `counts_raw.csv`, `counts_dedup.csv`, a start-position histogram, and a single HTML report from `reads.fastq.gz` + `reference.fa` using the structure rules in `protocol.md`. In this chat environment, the contents of `protocol.md`, `reference.fa`, and `reads.fastq.gz` are not visible, so I cannot truthfully provide the computed CSVs/plots/report inline without fabricating results.
+
+Below is an **execution-ready workflow** you can run in the competition environment (where the files exist) to deterministically produce the required deliverables. It is intentionally designed to also support diagnosing Incident D/E by including UMI/motif sanity checks (once you fill in the correct read structure from `protocol.md`).
+
+### Coordinate convention (must be stated in outputs)
+- Transcript coordinates are **1-based** along `toy_gene` in `reference.fa`; position 1 is the first nucleotide of the reference sequence.
+- We count **5′ ends** of aligned reads:
+  - Forward strand: 5′ end = `reference_start + 1` (SAM leftmost position).
+  - Reverse strand: 5′ end = `reference_end` (SAM 0-based exclusive converted to 1-based end position).
+
+### Required deliverables (produced by the workflow below)
+- `counts_raw.csv`: per-position 5′ start counts (all mapped reads; no dedup).
+- `counts_dedup.csv`: per-position 5′ start counts after deduplication by (strand, 5′ position, UMI).
+- `startpos_hist.png`: histogram plot of 5′ start positions (raw vs deduplicated, side-by-side).
+- `report.html`: single-transcript QC summary and interpretation scaffold (populated with computed metrics).
+
+### Execution-ready workflow (one-time setup + run)
+
+**Step A: Fill in protocol-derived constants (required to avoid Incident D/E pitfalls)**
+From `protocol.md`, determine:
+- UMI location (e.g., first N bases of R1 vs in an index read),
+- UMI length,
+- constant adapter/linker motif(s) expected adjacent to the UMI and/or insert.
+
+**Step B: Run the pipeline**
+Save the script below as `ribo_toy_pipeline.py`, then run:
+```bash
+python ribo_toy_pipeline.py \
+  --reads reads.fastq.gz \
+  --ref reference.fa \
+  --outdir out \
+  --umi_len <FROM_PROTOCOL_MD> \
+  --umi_at_5prime \
+  --adapter <FROM_PROTOCOL_MD_IF_APPLICABLE>
+```
+
+> Note: Alignment is performed via external tools (e.g., bowtie2 + samtools), because a self-contained Python-only aligner is not included here. This is deliberate to keep the analysis standard and auditable. The script writes an `ALIGN_INSTRUCTIONS.txt` file if the BAM is missing.
+
+#### Script: `ribo_toy_pipeline.py`
+```python
+import argparse, gzip, os, re, math
+from collections import Counter
+
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+import pysam
+
+def read_fasta_one(path):
+    name, seq = None, []
+    with open(path) as f:
+        for line in f:
+            line=line.strip()
+            if not line: continue
+            if line.startswith(">"):
+                name = line[1:].split()[0]
+            else:
+                seq.append(line.upper())
+    return name, "".join(seq)
+
+def fastq_iter(path):
+    op = gzip.open if path.endswith(".gz") else open
+    with op(path, "rt") as f:
+        while True:
+            h = f.readline().rstrip()
+            if not h: break
+            s = f.readline().rstrip()
+            f.readline()  # +
+            q = f.readline().rstrip()
+            yield h, s, q
+
+def write_fastq(records, path):
+    op = gzip.open if path.endswith(".gz") else open
+    with op(path, "wt") as f:
+        for h, s, q in records:
+            f.write(h + "\n" + s + "\n+\n" + q + "\n")
+
+def simple_adapter_trim(seq, qual, adapter, minlen=18):
+    i = seq.find(adapter)
+    if i != -1:
+        seq, qual = seq[:i], qual[:i]
+    if len(seq) < minlen:
+        return None
+    return seq, qual
+
+def shannon_entropy(counts):
+    total = sum(counts.values())
+    if total == 0: return 0.0
+    ent = 0.0
+    for c in counts.values():
+        p = c/total
+        ent -= p*math.log(p, 2)
+    return ent
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--reads", required=True)
+    ap.add_argument("--ref", required=True)
+    ap.add_argument("--outdir", required=True)
+
+    # MUST be set from protocol.md to avoid Incident D
+    ap.add_argument("--umi_len", type=int, required=True)
+    ap.add_argument("--umi_at_5prime", action="store_true")
+    ap.add_argument("--adapter", default="")  # set if protocol expects a constant adapter to trim
+
+    args = ap.parse_args()
+    os.makedirs(args.outdir, exist_ok=True)
+
+    ref_name, ref_seq = read_fasta_one(args.ref)
+    L = len(ref_seq)
+
+    # 1) UMI extraction (default: first umi_len bases of R1)
+    umi_counts = Counter()
+    umi_pos_base_counts = [Counter() for _ in range(args.umi_len)]
+    trimmed_records = []
+    total_in = kept = adapter_hits = 0
+
+    for h, s, q in fastq_iter(args.reads):
+        total_in += 1
+        if args.umi_at_5prime:
+            umi = s[:args.umi_len]
+            s2 = s[args.umi_len:]
+            q2 = q[args.umi_len:]
+        else:
+            raise SystemExit("Implement non-5prime UMI extraction per protocol.md")
+
+        umi_counts[umi] += 1
+        for i,ch in enumerate(umi):
+            umi_pos_base_counts[i][ch] += 1
+
+        # 2) Optional adapter trim (fill from protocol.md if appropriate)
+        if args.adapter:
+            if args.adapter in s2:
+                adapter_hits += 1
+            res = simple_adapter_trim(s2, q2, args.adapter, minlen=18)
+            if res is None:
+                continue
+            s2, q2 = res
+
+        kept += 1
+        h2 = h.split()[0] + f"_UMI:{umi}"
+        trimmed_records.append((h2, s2, q2))
+
+    trimmed_path = os.path.join(args.outdir, "trimmed.fastq.gz")
+    write_fastq(trimmed_records, trimmed_path)
+
+    # 3) Alignment must be performed externally to create out/aligned.sorted.bam
+    bam_path = os.path.join(args.outdir, "aligned.sorted.bam")
+    if not os.path.exists(bam_path):
+        instr = os.path.join(args.outdir, "ALIGN_INSTRUCTIONS.txt")
+        with open(instr, "w") as f:
+            f.write("Create aligned.sorted.bam by aligning out/trimmed.fastq.gz to reference.fa.\n")
+            f.write("Example:\n")
+            f.write("  bowtie2-build reference.fa refidx\n")
+            f.write("  bowtie2 -x refidx -U out/trimmed.fastq.gz | samtools view -bS - > out/aligned.bam\n")
+            f.write("  samtools sort -o out/aligned.sorted.bam out/aligned.bam\n")
+            f.write("  samtools index out/aligned.sorted.bam\n")
+        raise SystemExit(f"Missing {bam_path}. See {instr} and re-run after generating BAM.")
+
+    bam = pysam.AlignmentFile(bam_path, "rb")
+
+    # 4) Raw and dedup 5' start counts
+    raw_counts = [0]*(L+1)
+    dedup_counts = [0]*(L+1)
+    seen = set()
+    mapped = 0
+
+    for r in bam.fetch(until_eof=True):
+        if r.is_unmapped:
+            continue
+        mapped += 1
+
+        m = re.search(r"_UMI:([A-Z]+)", r.query_name)
+        umi = m.group(1) if m else "NOUMI"
+
+        if not r.is_reverse:
+            fivep = r.reference_start + 1
+            strand = "+"
+        else:
+            fivep = r.reference_end
+            strand = "-"
+
+        if 1 <= fivep <= L:
+            raw_counts[fivep] += 1
+            key = (strand, fivep, umi)
+            if key not in seen:
+                seen.add(key)
+                dedup_counts[fivep] += 1
+
+    # write CSVs with full 1..L span
+    raw_csv = os.path.join(args.outdir, "counts_raw.csv")
+    dedup_csv = os.path.join(args.outdir, "counts_dedup.csv")
+    with open(raw_csv, "w") as f:
+        f.write("position,count\n")
+        for pos in range(1, L+1):
+            f.write(f"{pos},{raw_counts[pos]}\n")
+    with open(dedup_csv, "w") as f:
+        f.write("position,count\n")
+        for pos in range(1, L+1):
+            f.write(f"{pos},{dedup_counts[pos]}\n")
+
+    # plot
+    xs = list(range(1, L+1))
+    fig, axs = plt.subplots(1, 2, figsize=(12, 3), sharex=True)
+    axs[0].bar(xs, [raw_counts[i] for i in xs], width=1.0)
+    axs[0].set_title("5' start positions (raw)")
+    axs[0].set_xlabel("Transcript position (1-based)")
+    axs[0].set_ylabel("Count")
+
+    axs[1].bar(xs, [dedup_counts[i] for i in xs], width=1.0)
+    axs[1].set_title("5' start positions (deduplicated)")
+    axs[1].set_xlabel("Transcript position (1-based)")
+
+    plt.tight_layout()
+    plot_path = os.path.join(args.outdir, "startpos_hist.png")
+    fig.savefig(plot_path, dpi=200)
+
+    # UMI complexity summary
+    umi_unique = len(umi_counts)
+    top_umi, top_umi_n = umi_counts.most_common(1)[0] if umi_counts else ("", 0)
+    entropies = [shannon_entropy(c) for c in umi_pos_base_counts]
+    ent_mean = sum(entropies)/len(entropies) if entropies else 0.0
+
+    # HTML report
+    html_path = os.path.join(args.outdir, "report.html")
+    with open(html_path, "w") as f:
+        f.write("<html><head><meta charset='utf-8'><title>toy_gene Ribo-seq QC</title></head><body>\n")
+        f.write("<h1>Single-transcript Ribo-seq pilot QC (toy_gene)</h1>\n")
+        f.write("<h2>Inputs</h2>\n")
+        f.write(f"<ul><li>reads: {args.reads}</li><li>reference: {args.ref} ({ref_name}, length {L})</li></ul>\n")
+
+        f.write("<h2>Processing summary</h2>\n")
+        f.write(f"<ul><li>Reads in: {total_in}</li>")
+        f.write(f"<li>Reads kept after UMI removal/optional trim: {kept}</li>")
+        if args.adapter:
+            f.write(f"<li>Adapter hits (substring match): {adapter_hits}</li>")
+        f.write(f"<li>Mapped reads in BAM: {mapped}</li></ul>\n")
+
+        f.write("<h2>UMI complexity (pre-dedup)</h2>\n")
+        f.write(f"<ul><li>UMI length (from protocol.md): {args.umi_len}</li>")
+        f.write(f"<li>Unique UMIs observed: {umi_unique}</li>")
+        f.write(f"<li>Top UMI: {top_umi} (n={top_umi_n})</li>")
+        f.write(f"<li>Mean per-position UMI entropy: {ent_mean:.3f} bits</li></ul>\n")
+
+        f.write("<h2>Deduplication impact</h2>\n")
+        f.write(f"<ul><li>Unique molecules (by strand, 5' pos, UMI): {len(seen)}</li></ul>\n")
+
+        f.write("<h2>5' start-position distributions</h2>\n")
+        f.write(f"<img src='startpos_hist.png' width='100%'/>\n")
+
+        f.write("<h2>Interpretation checklist</h2>\n")
+        f.write("<ul>")
+        f.write("<li>If mean UMI entropy is very low and top UMI dominates: suspect UMI extraction mis-specified (Incident D) or wrong oligo/low-diversity UMI.</li>")
+        f.write("<li>If start sites collapse to very few positions only after dedup: suspect over-collapsing or severe bottleneck.</li>")
+        f.write("<li>3-nt periodicity requires CDS/frame coordinates for toy_gene; without annotation, periodicity cannot be meaningfully assessed.</li>")
+        f.write("</ul>\n")
+
+        f.write("</body></html>\n")
+
+    print("Wrote:", raw_csv, dedup_csv, plot_path, html_path)
+
+if __name__ == "__main__":
+    main()
+```
+
+### Written interpretation (what looks biologically meaningful)
+- With only a single transcript reference and no CDS/frame annotation provided here, **3-nt periodicity and frame enrichment cannot be robustly interpreted** without defining CDS coordinates first.
+- What can still be biologically suggestive: whether 5′ start positions show **non-uniform clustering** along the transcript (putative occupancy peaks) and whether that pattern **persists after UMI deduplication** (i.e., not just PCR duplication).
+
+### 2–4 concrete follow-up checks / next steps (computational; grounded in the incidents)
+1) **UMI validation (Incident D):** confirm UMI length/location from `protocol.md`, then verify UMI entropy/base composition and top-UMI dominance.  
+2) **Linker/adapter motif frequency (Incident E):** scan raw reads for the expected linker motif from `protocol.md`; near-absence suggests ligation/library-structure failure even if alignment rate is “acceptable.”  
+3) **Length distribution check (Incident C):** after trimming, plot read-length histogram; substantial long reads (e.g., >40 nt) predict weak periodicity and increased non-CDS mapping.  
+4) **Raw vs dedup shape comparison:** if dedup changes the *shape* of the positional histogram (not just total counts), suspect UMI mis-extraction or over-collapsing.
+
+---
+
+## Cross-incident validation & prevention plan (integrated)
+
+### Shared upstream causes across incidents
+- **Cleanup inhibitor carryover** plausibly underlies both **Incident A and B**.
+- **Mismatch between wet-lab read structure and bioinformatics assumptions** plausibly underlies **Incident D**, and can also undermine interpretability elsewhere.
+- **Oligo specification control** is the single-point prevention for **Incident E**.
+
+### Protocol hardening (must be implemented in `protocol.md`)
+1) **Explicit “sensitive steps” + checklists** (cleanup: ethanol removal, dry endpoint, eluate transfer).  
+2) **Read-structure diagram + exact extraction/trimming rules** (UMI position/length; adapter motifs).  
+3) **Digestion + size selection specification** (dose relative to input; explicit nt selection window; marker guidance).
+
+### Mandatory QC gates (stop/go)
+- Cleanup inhibition gate: low A260/230 and/or qPCR inhibition signature → stop and repeat cleanup before proceeding.  
+- Ligation gate (Incident E): no shifted ligation band on the designated gel check → stop.  
+- Footprint size gate (Incident C): substantial long-fragment mass post-trim → flag as non-canonical footprints; do not treat periodicity as a success criterion.  
+- UMI gate (Incident D): low entropy / extreme top-UMI dominance / immediate saturation of unique UMIs → stop; verify extraction coordinates and oligo specification.
+
+---
+
+## References
+No explicit bibliographic references (titles/authors/links) were provided in the Search Findings; therefore no formal reference list can be included without inventing citations.
+
+---
+
+## Red Review (Critique + Reliability Score)
+
+# Red Team Review (from RedAgent)
+## Reliability Score
+- Score: 72
+- Rationale: The answer demonstrates strong conceptual understanding of Ribo-seq troubleshooting and provides logically coherent diagnoses for each incident. Root cause rankings are generally well-justified by the stated observations. However, the response suffers from several critical gaps: (1) it cannot verify claims against the actual protocol.md content, which is central to the task constraints; (2) the computational pipeline in 1-6 is incomplete and requires external alignment steps not guaranteed in the environment; (3) quantitative QC thresholds are asserted without empirical justification from the provided data; (4) some fixes are generic best practices rather than protocol-specific corrections.
+
+## Critiques / Limitations / Risks (in priority order)
+
+1. **Failure to reference actual protocol.md content**: The task explicitly states answers "must be supported by the protocol text," yet the response repeatedly acknowledges it cannot see the protocol file. All claims about what the protocol does or does not specify (e.g., cleanup steps, UMI positions, adapter sequences) are hypothetical rather than verified. This fundamentally undermines the evidentiary basis required by the problem constraints.
+
+2. **Incomplete deliverables for 1-6**: The pipeline script requires an external alignment step (bowtie2/samtools) and halts if aligned.bam is missing. This means the "single-command workflow" claim is false—it cannot produce the required CSVs and plots without manual intervention. The script also hardcodes placeholder values (e.g., `--adapter=""`, `--umi_len=8`) that must be derived from protocol.md, creating circular dependency.
+
+3. **Arbitrary quantitative thresholds without data support**: QC gates such as "A260/230 < 1.5," "Ct SD > 0.5," ">15-20% reads >40 nt," and "UMI entropy < 1.5 bits" are presented as actionable cutoffs but lack derivation from the provided reads.fastq.gz or any stated literature source. These thresholds may be reasonable heuristics but are not empirically justified within the answer's own framework.
+
+4. **Incident C diagnosis is underspecified**: While under-digestion is plausible, the answer does not distinguish between nuclease concentration errors, incubation time/temperature deviations, or buffer composition issues—all of which require different fixes. The protocol audit suggestion is appropriate but the "fix" section remains generic.
+
+5. **Incident E oligo verification is incomplete**: The answer correctly identifies oligo specification mismatch as the likely cause but does not provide a concrete method to verify the oligo sequence/chemistry from existing data. The suggested "sequence-motif check" is valid but the expected motif is not extracted from protocol.md (which the answer cannot access).
+
+6. **Cross-incident validation plan lacks prioritization**: The integrated prevention plan lists multiple QC gates but does not specify which are mandatory versus recommended, nor does it address resource constraints (e.g., not all labs have qPCR or TapeStation access for every run).
+
+7. **Periodicity analysis cannot be performed**: The answer correctly notes that CDS coordinates are required for 3-nt periodicity assessment but does not attempt to infer or request this information, leaving a key Ribo-seq QC metric unaddressed in the deliverables.
+
+8. **Reproducibility risk in script**: The Python script uses hardcoded assumptions about read structure that may not match the actual protocol. If the UMI is not at the 5' end or has a different length, the entire analysis would be invalid. No validation step confirms the extraction is correct before proceeding.
+
+## Final Short Summary to Attach
+
+This response provides a well-organized, conceptually sound troubleshooting framework for the five incidents, with appropriately ranked root causes and reasonable diagnostic logic. However, it fails to meet the core task constraint of grounding answers in the actual protocol.md text, which it acknowledges not having access to. The computational deliverables for 1-6 are incomplete (requiring external alignment tools and manual parameter specification), and quantitative QC thresholds are asserted without empirical derivation from the provided data. The cross-incident prevention plan is comprehensive but generic. To improve reliability, the answer would need to: (1) explicitly parse and cite protocol.md content, (2) provide a fully self-contained analysis pipeline, and (3) derive thresholds from the actual pilot data rather than general heuristics.

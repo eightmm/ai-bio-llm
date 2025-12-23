@@ -1,0 +1,570 @@
+# Problem
+Problem 5. [Rejuvenation Target Discovery Along the T Cell Exhaustion–Aging–Death Axis]
+
+
+Background
+In the tumor microenvironment, T cells are subjected to chronic and repeated antigen stimulation over time, leading to the acquisition of a T cell exhaustion program characterized by reduced effector function and altered transcriptional states. As this process progresses, a subset of exhausted T cells is observed to exhibit stress-induced, aging-like transcriptional programs, which may ultimately culminate in cellular senescence and cell death.
+In this problem, T cell exhaustion is assumed to represent a progressive trajectory toward aging-like dysfunction and terminal loss of cellular viability. Reversing this trajectory—particularly at critical transition points—can be conceptualized as a form of immune rejuvenation.
+You are provided with time-course bulk RNA-seq data of T cells following tumor challenge. Using this dataset, your task is to define and analyze the exhaustion–aging–death axis and propose gene-level intervention targets capable of reversing this progression.
+The following publicly available aging-related resources may be used, among others:
+•	GenAge (Human Aging Genomic Resources, HAGR)
+https://genomics.senescence.info/genes/
+•	MSigDB Aging / Senescence Gene Sets
+https://www.gsea-msigdb.org
+
+Task Overview
+Using the provided time-course T cell bulk RNA-seq data, identify candidate rejuvenation targets that could reverse T cell exhaustion and aging-like programs before terminal cell death.
+Your analysis should be explicitly grounded in RNA-seq–based evidence and focused on the intersection between exhaustion and aging-like transcriptional states.
+(A) Quantification of Exhaustion and Aging-Like Programs
+•	Define a T cell exhaustion score and an aging-like score using transcriptional signatures derived from the time-course data.
+•	Visualize and describe how these scores change over time following tumor challenge.
+(B) Identification of the Critical Transition Window
+•	Identify and define a key transition window along the
+“Exhaustion → Aging-Like → Death” axis.
+•	Justify why this time interval represents a biologically meaningful state transition, rather than a gradual continuum.
+(C) Proposal of Rejuvenation Target Genes
+•	Propose candidate target genes capable of reversing or disrupting the exhaustion–aging trajectory during the identified transition window.
+•	For each proposed target:
+o	Specify the direction of intervention: inhibition or activation
+o	Provide RNA-seq–based evidence, including:
+	Direction of expression change over time
+	Network or pathway-level context
+	Opposing regulation relative to exhaustion or aging-like signatures
+Your reasoning should explicitly connect gene modulation to the expected rejuvenation-like transcriptional shift.
+(D) Optional (Bonus): Therapeutic Mapping
+•	Using the provided drug–target dataset, identify:
+o	Existing drugs or compounds that could modulate the proposed targets
+•	Briefly discuss feasibility, specificity, or limitations of these interventions
+
+
+
+
+
+---
+
+# Search Findings / References (from SearchAgent)
+# Rejuvenation Target Discovery Along the T Cell Exhaustion–Aging–Death Axis: A Comprehensive RNA-seq–Grounded Framework
+
+## Executive Summary
+
+Tumor-infiltrating T cells undergo a progressive and multistage functional decline during sustained antigen exposure, transitioning from an exhausted state characterized by reduced effector function and upregulation of inhibitory receptors to a secondary aging-like phenotype that manifests stress-response and senescence-associated transcriptional programs.[1][2][12][18] This pathological trajectory—conceptualized herein as the Exhaustion→Aging-like→Death axis—represents a critical window for therapeutic intervention, as reversing this trajectory at its inflection points offers a distinct strategy for immune rejuvenation beyond conventional checkpoint blockade. Time-course bulk RNA-sequencing of tumor-challenged T cells provides an unparalleled opportunity to characterize this progression at transcriptomic resolution, identify the molecular architecture underlying state transitions, and nominate gene-level intervention targets that could halt or reverse the exhaustion-driven aging process before terminal cell death ensues. This report synthesizes contemporary understanding of T cell exhaustion, cellular senescence, and immunometabolic dysfunction to propose a structured analytical framework for quantifying these interconnected programs, detecting the critical transition window along the exhaustion-aging axis, and identifying statistically and mechanistically grounded rejuvenation targets with therapeutic actionability.
+
+## Quantification of Exhaustion and Aging-Like Programs from Time-Course Bulk RNA-Sequencing Data
+
+### Conceptual Framework: T Cell Exhaustion as an Initiating Event in a Transition Toward Aging-Like Dysfunction
+
+The development of T cell exhaustion in the tumor microenvironment is driven by chronic and repetitive antigen stimulation, which triggers a distinct transcriptional and epigenetic program fundamentally different from acute T cell activation or terminal effector differentiation.[1][4] Early exhaustion is characterized by upregulation of inhibitory receptors including PD-1, CTLA-4, TIM-3, and LAG-3, coupled with impaired cytokine production and reduced proliferative capacity, a phenotype that can be partially reversed by immune checkpoint blockade.[1][38] However, as exhaustion progresses—particularly in the context of persistent antigen exposure—a subset of exhausted T cells exhibits what has been termed "terminal" exhaustion, marked by diminished TCF-1 expression, elevated expression of transcription factors including TOX, NR4A family members, BLIMP-1, and IRF4, and extensive epigenetic remodeling at exhaustion-associated loci.[1][4][9][12][39][44] Concomitant with these features of terminal exhaustion, T cells in chronic infection and cancer settings begin to express stress-response and senescence-associated markers including elevated p38 MAPK signaling, DNA damage response activation, reduced metabolic capacity, and senescence-associated β-galactosidase activity, suggesting a secondary aging-like program superimposed upon the primary exhaustion trajectory.[2][18][48]
+
+This progressive evolution from reversible to terminal exhaustion, overlapping with the emergence of aging-like signatures, creates a therapeutic vulnerability: if the transition from reversible to terminal exhaustion can be detected and therapeutically targeted, the subsequent seeding of an aging-like program may be prevented, thereby preserving a population of T cells capable of rejuvenation.[2][5][15][35] Time-course bulk RNA-sequencing is ideally suited to map this progression because it captures the full transcriptional landscape across multiple time points post-tumor challenge, enabling identification of both gradual shifts in gene expression and discrete inflection points that mark state transitions.
+
+### Quality Control and Preprocessing of Time-Course RNA-seq Data
+
+The foundation of robust analysis lies in rigorous quality control and preprocessing. The input dataset should be confirmed to include clearly documented time points (e.g., day 0, 3, 7, 14, 21, 28 post-tumor inoculation) with biological replicates (minimum of 3 per time point, ideally 4–6) to enable robust statistical inference and characterization of replicate-to-replicate variation.[6][26][27][31] Raw read counts should undergo standard normalization (size factor estimation via DESeq2 median-of-ratios method or trimmed mean of M-values normalization in edgeR) to account for sequencing depth variation across samples.[26][34] Following normalization, data should be transformed using variance-stabilizing transformation (DESeq2::vst with blind=FALSE to account for design) or log2(counts per million + 0.5) transformation (following TMM normalization in edgeR), and the resulting expression matrix should be quality-checked via PCA and MDS to identify and potentially remove outlier samples.[6][31][34] Genes with very low mean counts (e.g., mean raw count <1–5 across all samples) should be filtered to reduce noise and improve power for time-series testing.[26][31][34] Batch effects—such as those arising from different sequencing lanes, library preparation dates, or technical handling—should be assessed via PCA (coloring samples by batch variable) and, if substantial, corrected using methods such as ComBat (via SVA or limma::removeBatchEffect) applied within the time-series regression design to avoid removing true biological time-dependent variation.[6][26][31]
+
+### Discovery of Time-Dependent Transcriptional Signatures: Derivation of Exhaustion and Aging-Like Modules
+
+Once data are preprocessed and quality-controlled, the next step is to identify co-expressed gene modules that capture the temporal evolution of exhaustion and aging-like programs directly from the data. Multiple complementary approaches can be employed; together, they provide a robust, data-grounded foundation for downstream scoring:
+
+**Approach 1: WGCNA (Weighted Gene Co-expression Network Analysis) for Module Discovery.** WGCNA constructs a weighted co-expression network wherein edges represent the strength of co-expression between gene pairs, identified via soft-thresholding of pairwise correlations.[7] Genes are then hierarchically clustered based on topological overlap (a measure of shared neighbors and direct correlation), and the resulting dendrogram is cut using dynamic tree-cutting to identify co-expression modules. For time-course data, module eigengenes (the first principal component of each module's expression matrix) can be regressed against time or time-polynomial terms to identify modules whose overall expression trajectory strongly correlates with elapsed time post-tumor challenge.[7] Modules showing monotonic increase or decrease with time, or exhibiting specific shape patterns (e.g., early increase followed by plateau for exhaustion; gradual acceleration of increase for aging-like), are nominated as candidate signatures. The investigator then performs functional enrichment testing (fgsea, MSigDB) on genes within each module to annotate its biological function and assign it as either exhaustion-like, aging-like, effector-like, or progenitor-like based on overlap with known gene sets.[7][14] This approach has the advantage of being unbiased and yielding interpretable gene modules that reflect true biological processes.[7]
+
+**Approach 2: Time-Series Differential Expression Analysis via maSigPro or ImpulseDE2.** Specialized methods for time-course RNA-seq directly model gene expression as a function of time, often incorporating polynomial regression (maSigPro) or impulse models (ImpulseDE2) to capture non-linear temporal dynamics.[27][31][34] maSigPro fits generalized linear models (GLMs for count data) with polynomial terms representing time and time-by-condition interactions, enabling identification of genes whose expression significantly changes over time and whose temporal trajectories differ between conditions (if applicable).[31][34] ImpulseDE2, on the other hand, models expression as a descriptive impulse function (product of two sigmoids with initial, peak, and steady-state parameters), enabling detection of genes that undergo transient or sustained changes and distinguishing between permanently and transiently regulated genes.[27][30] Both methods output a table of significant genes annotated with temporal coefficients and FDR-corrected p-values. Genes identified as significantly time-dependent are then clustered by their expression trajectory shape (using k-means or hierarchical clustering based on polynomial or impulse model coefficients) to identify gene groups that show similar temporal patterns.[27][31] These trajectory clusters can then be annotated via enrichment testing to identify which represent exhaustion versus aging-like programs.[27][31][34]
+
+**Approach 3: Non-negative Matrix Factorization (NMF) for Latent Factor Discovery.** NMF decomposes the gene expression matrix (genes × samples) into two non-negative matrices: a basis matrix (genes × factors, representing gene programs) and an activity matrix (factors × samples, representing per-sample program usage).[50] Applied to time-course data, NMF can uncover latent gene programs without requiring a priori gene set definitions, and the per-sample activity scores naturally capture how strongly each program is expressed in each sample, enabling visualization of program activation across time.[50] The number of factors (k) is chosen via reproducibility analysis (consensus NMF or cNMF) and elbow methods, and factors are then annotated via enrichment testing to assign biological meaning (exhaustion-like, aging-like, etc.).[50] A key advantage is that NMF naturally provides per-sample activity scores (factorization weights) that can be directly plotted across time points, yielding interpretable visualizations of program dynamics.[50]
+
+### Annotation of Discovered Modules Against Known Exhaustion and Aging Signatures
+
+Once candidate modules or gene clusters have been identified via WGCNA, time-series DE, or NMF, their functional annotation should be validated and extended by testing for enrichment of known exhaustion and senescence/aging gene sets. Publicly available resources provide a foundation for this cross-validation:
+
+**GenAge Database and MSigDB Aging/Senescence Gene Sets:** The GenAge database (https://genomics.senescence.info/genes/)[13][16] curates human genes directly linked to aging and longevity, enabling assessment of overlap between discovered modules and established aging-related genes. Additionally, MSigDB provides curated gene sets for hallmark aging/senescence signatures (e.g., HALLMARK_INFLAMMATORY_RESPONSE[14], WP_SENESCENCE_ASSOCIATED_SECRETORY_PHENOTYPE_SASP[17]) that capture conserved aging phenotypes including inflammatory responses and stress-induced secretory programs.[14][17]
+
+**T Cell Exhaustion Signatures:** Canonical exhaustion signatures can be derived from the literature or constructed from known exhaustion-associated genes including inhibitory receptors (PD-1/PDCD1, CTLA-4, TIM-3/HAVCR2, LAG-3, TIGIT), exhaustion-promoting transcription factors (TOX, TOX2, NR4A1/2/3, BLIMP-1/PRDM1, IRF4, BATF), and exhaustion-associated epigenetic marks and metabolic shifts.[1][4][9][12][39][44] These can be formalized as a gene set and tested for enrichment in discovered modules using fgsea or GSVA.[8][11][43]
+
+**Functional Enrichment Testing:** To validate module annotation, perform gene set enrichment analysis (fgsea) or over-representation analysis (Fisher's exact test via clusterProfiler or Enrichr) on genes within each module, testing against MSigDB Hallmark pathways, KEGG, Reactome, and GO biological processes.[14][46] Modules showing significant enrichment for exhaustion marker gene sets (e.g., PD-1, CTLA-4, TOX, NR4A targets) are labeled "exhaustion-like"; modules enriched for senescence/aging markers, inflammatory cytokines, and SASP signatures are labeled "aging-like"; modules enriched for metabolic pathways, OXPHOS, and memory-associated factors are labeled "effector/memory-like."[1][2][14][17][18][48]
+
+### Per-Sample Program Scoring: Quantification of Exhaustion and Aging-Like Trajectories
+
+Once exhaustion-like and aging-like modules (or gene clusters) have been identified and validated, per-sample program scores are computed to quantify the activity level of each program in every sample, thereby enabling visualization of how these programs evolve across time points. Multiple scoring methods exist, each with different statistical properties:
+
+**Single-Sample Gene Set Enrichment Analysis (ssGSEA) and GSVA:** ssGSEA and GSVA compute a gene set enrichment score for each sample independently, reflecting the cumulative expression of genes in the signature set relative to background genes.[8][11] These methods are widely used and relatively robust to dataset size, though they can be sensitive to variation in gene counts (particularly in single-cell data; for bulk data this is less problematic).[8][11] A score is computed as (roughly): normalized enrichment of up-regulated genes in the set minus enrichment of down-regulated genes.[8][11] Output is a per-sample score; higher scores typically indicate stronger activation of the program.[8][11]
+
+**Mean of Ranked z-Scores or Simple Average.** A simpler and often equally effective approach is to compute the mean of z-scored log2 expression values for signature genes, where genes are weighted by their direction (up-regulated genes in the signature get positive weight; down-regulated genes, if present, get negative weight).[11] This method is interpretable and avoids method-specific bias, though it is less statistically sophisticated.[11]
+
+**Singscore:** An alternative method that scores each sample as the relative ranking of signature genes compared to a background gene set, providing normalized scores and confidence intervals.[11] Singscore is particularly useful when comparing across datasets or when gene set size varies.[11]
+
+For this analysis, it is recommended to compute scores using multiple methods (e.g., ssGSEA + mean z-score) and assess correlation between methods to ensure robustness; typically correlation >0.85 suggests concordance.[11] The resulting per-sample scores (one exhaustion-like score and one aging-like score per sample) are then plotted as a function of time post-tumor challenge, with error bars representing standard error or confidence intervals across replicates at each time point. Line plots with fitted smooths (e.g., LOESS, natural splines) help visualize the temporal trajectory and identify inflection points or changes in slope.[6][26][31]
+
+### Visualization and Temporal Description of Program Dynamics
+
+A multi-layered visualization strategy reveals the temporal evolution of exhaustion and aging-like programs:
+
+**Time-Course Score Trajectories:** Plot exhaustion-like and aging-like scores (y-axis) against time post-tumor challenge (x-axis), with separate lines or colors for each program. Include error bars (±SEM across replicates) and optionally fitted smooth trends (LOESS, cubic splines) to highlight non-linearities.[6][26][31] Annotation should note any inflection points, plateaus, or accelerated changes that suggest transitions.[6][26][31]
+
+**Heatmaps of Signature Gene Expression:** For exhaustion-like and aging-like modules separately, construct normalized expression heatmaps with genes (rows) and samples ordered by time (columns, grouped by time point with replicates). Coloring represents z-scored log2 expression (red=high, blue=low), revealing coordinated temporal patterns across signature genes and providing visual confirmation of module coherence and temporal evolution.[6]
+
+**PCA or UMAP Colored by Scores:** Perform dimensionality reduction (PCA using the top variable genes, or UMAP on a distance matrix) on the full time-course expression matrix. In the resulting 2D projection, color points by time or by exhaustion-like and aging-like scores, enabling visualization of the trajectory of transcriptomic state across the time series. This visualization often reveals clustering of early vs late time points and can highlight discontinuities in the transcriptional landscape.[6]
+
+**Correlation Between Exhaustion and Aging-Like Scores:** Compute the Pearson correlation between exhaustion-like and aging-like scores across all samples. A positive correlation at later time points suggests that exhaustion and aging-like programs co-occur (supporting the proposed axis), whereas early time points may show weak or negative correlation (suggesting sequential vs simultaneous activation).[1][2][18]
+
+## Identification of a Critical Transition Window Along the Exhaustion→Aging-Like→Death Axis
+
+### Change-Point Detection: Statistical Identification of Discrete Transitions
+
+The hypothesis that exhaustion progresses toward aging-like dysfunction and death via discrete state transitions (rather than a smooth continuum) can be tested using change-point detection methods, which identify time points at which the statistical properties of a signal (mean, variance, trend) change significantly.[25][26][29] Multiple approaches are available:
+
+**Segmented (Piecewise) Regression:** Segmented regression assumes that the relationship between a continuous outcome (e.g., exhaustion-like score) and time changes at one or more breakpoints. A two-segment model posits two distinct linear trends with different slopes joined at a breakpoint, while multi-segment models allow more flexibility.[28] Fitting a segmented regression model to exhaustion-like and aging-like scores involves: (1) specify the number of segments (e.g., test 1, 2, 3 segments); (2) use iterative algorithms (e.g., Randles–Wolff–Hogg algorithm or grid search) to find breakpoints that minimize residual sum of squares; (3) evaluate model fit via \(R^2\), AIC, BIC, and compare against simpler (non-segmented) models using likelihood ratio tests or information criteria; (4) assess statistical significance of breakpoints via confidence intervals and bootstrap resampling.[25][28] A breakpoint is credible if its confidence interval does not span a wide range and the slope change across the breakpoint is large relative to within-segment variation.[25][28]
+
+**Bayesian Change-Point Detection:** Bayesian methods (e.g., bcp package in R; segment-by-segment emission probability models) place a prior distribution on the number and location of change points and infer posterior probabilities that each time interval contains a change point.[29] This approach is less prone to over-segmentation (identifying spurious change points) than frequentist methods and naturally provides uncertainty quantification via posterior credible intervals.[29]
+
+**PELT (Pruned Exact Linear Time) and Related Dynamic Programming Methods:** The changepoint package in R implements PELT and related methods that detect multiple change points in a time series via optimization of a cost function (e.g., sum of squared error within segments plus a penalty for number of segments, as in the BIC criterion).[26][29] These methods are computationally efficient and widely applicable.[26][29]
+
+**Application to Exhaustion and Aging-Like Scores:** Apply change-point detection to the time-course trajectories of exhaustion-like and aging-like scores separately. If a breakpoint is detected (at, e.g., day 14 post-tumor challenge), it suggests a transition at that time point. Ideally, both exhaustion-like and aging-like scores should exhibit change points in the same time interval, strengthening the hypothesis of a coordinated state transition.[26][29]
+
+### Model Comparison: Discrete vs Continuous Evolution
+
+To determine whether the data better support a discrete transition or gradual continuum, compare statistical models:
+
+**Model 1 (Continuous):** A smooth trend model, such as: \[\text{Score}(t) = \beta_0 + \beta_1 \cdot t + \beta_2 \cdot t^2 + \text{error}\] or use a natural cubic spline with 2–3 degrees of freedom.[26][27]
+
+**Model 2 (Discrete):** A segmented regression with one or more breakpoints, such as: \[\text{Score}(t) = \begin{cases} \beta_{0,1} + \beta_{1,1} \cdot t & t < \text{breakpoint} \\ \beta_{0,2} + \beta_{1,2} \cdot t & t \geq \text{breakpoint} \end{cases}\]
+
+Evaluate fit using \(R^2_{\text{adjusted}}\), AIC, BIC, and likelihood ratio tests. A significant improvement in AIC/BIC for the segmented model (ΔAI <−10, ΔBIC <−10) suggests the discrete model is more appropriate than smooth trends.[26][28][29] Additionally, perform cross-validation: fit each model to a random 80% of the data, evaluate prediction error on the held-out 20%, and repeat multiple times. The model with lower cross-validation error is more generalizable and likely more appropriate for the true underlying biology.[26][28][29]
+
+### Multi-Signal Confirmation: Coordinated Shifts in Pathways, Modules, and Death-Associated Signatures
+
+A robust transition window identification should not rely on a single measure (e.g., change point in exhaustion score) but should instead show coordinated shifts across multiple independent data layers:
+
+**Pathway Activity Inference:** Use pathway activity inference methods (PROGENy, DoRothEA) to compute per-sample activity scores for canonical pathways implicated in exhaustion, senescence, and cell death, including: PI3K/AKT signaling, MAPK signaling, p53 pathway, inflammatory response (NFκB), Wnt signaling, and HIF-1α signaling.[19][22][36][40][45] Plot these pathway activities across time; a coordinated shift during the candidate transition window (e.g., a spike in p53 activity, increase in inflammatory pathway activity, and shift in PI3K/AKT activity) would confirm a functional state change.[19][22][36]
+
+**Apoptosis, ER Stress, and DNA Damage Response Signatures:** Apply GSVA to compute sample-wise scores for apoptosis hallmark gene sets (e.g., HALLMARK_APOPTOSIS), unfolded protein response (ER stress), and DNA damage response signatures (e.g., TP53 targets, ATM/ATR pathway genes). An increase in these "death-associated" signatures specifically within the candidate transition window, coupled with acceleration of aging-like program score, provides multi-signal evidence for a state transition toward terminal dysfunction.[14][17][35]
+
+**Transcription Factor Network Rewiring:** Within the transition window, test whether master regulatory transcription factors (e.g., TOX, NR4A, BLIMP-1, IRF4 for exhaustion/terminal exhaustion; TP53, ATF4 for stress/senescence) show a coordinated shift in expression and/or inferred activity. Use TF activity inference (DoRothEA/VIPER or decoupleR) to compute per-sample TF activities; a coordinated increase in TOX/NR4A activity and inferred p53 activity during the transition window would strongly support a state transition.[19][22][36][39][42][44]
+
+### Differential Expression Analysis: Pre-Window vs Window vs Post-Window
+
+Segment the time course into three intervals: (1) pre-window (e.g., days 0–8), (2) transition window (e.g., days 9–16), and (3) post-window (e.g., days 17–28), based on the preliminary change-point analysis. Perform pairwise differential expression comparisons (e.g., window vs pre-window; window vs post-window) using DESeq2 or limma-voom, identifying genes with large effect sizes (|log2FC| >1, FDR <0.05) that distinguish the window interval from adjacent intervals. Cluster these differentially expressed genes into patterns: (a) genes upregulated specifically in the window and post-window (showing onset during transition); (b) genes downregulated in the window (showing loss during transition); (c) genes showing maximum expression in the window followed by decrease post-window (transient activation).[26][31] Perform enrichment analysis on each cluster to characterize the functional repertoire of genes being engaged/disengaged during the transition.[14] A robust transition window should show enrichment of aging-like/stress/death signatures in the upregulated cluster and enrichment of effector/progenitor/metabolic functions in the downregulated cluster.[1][2][4][18][35]
+
+### Biological Justification: Why This Window Represents a State Transition
+
+The identified transition window can be justified as a biologically meaningful state transition by documenting the following criteria:
+
+1. **Multiplicity of Evidence:** The window shows change points in multiple independent readouts (exhaustion score, aging-like score, pathway activities, gene expression patterns), rather than isolated changes in a single metric.
+
+2. **Functional Coherence:** Genes and pathways changing during the window are functionally interconnected (e.g., all relate to senescence initiation, death commitment, or loss of effector capacity), suggesting coordinated rewiring rather than random fluctuations.
+
+3. **Irreversibility or Limited Reversibility:** Transcriptional and/or epigenetic changes emerging during the window (e.g., upregulation of histone marks associated with terminal exhaustion, such as increased H3K27me3 and bivalent chromatin[1]) are theoretically difficult to reverse post-transition, justifying the window as a "point of no return" or critical bottleneck for intervention.
+
+4. **Connection to Loss of Function:** The transition window coincides with measurable loss of effector functions (e.g., reduced IL-2, IFN-γ, TNF-α production inferred from RNA-seq or predicted from gene expression; reduced proliferative potential based on suppression of cell cycle genes)[1][18], confirming functional decline during this interval.
+
+5. **Known Biological Precedent:** Published studies of chronic viral infection or transplanted tumors in mice document similar windows of transition from reversible to terminal exhaustion and entry into senescence around days 7–14 post-infection, providing comparative context.[1][2][4][9]
+
+## RNA-seq–Grounded Proposal of Gene-Level Rejuvenation Targets in the Transition Window
+
+### Candidate Prioritization: Identifying Genes with Specific Temporal and Network Characteristics
+
+Gene-level rejuvenation targets are identified by combining four prioritization criteria: (1) maximal differential regulation specifically in the transition window; (2) strong correlation with exhaustion and/or aging-like program scores; (3) hub or regulatory status in co-expression modules; and (4) reversible directionality (i.e., inhibiting a gene that drives exhaustion/aging, or activating a gene whose loss contributes to dysfunction). The integrated approach to candidate nomination is outlined below:
+
+**Criterion 1: Window-Specific Differential Expression.** Identify genes showing maximal log2 fold change (|log2FC| >0.8, FDR <0.1) when comparing the transition window interval to both pre-window and post-window intervals, implying that expression change is concentrated in (rather than distributed across) the window. Alternatively, fit time-series regression models with interaction terms (e.g., time × window indicator) to identify genes whose expression slope changes specifically during the window.[26][31] Use impulse models (ImpulseDE2) to identify genes showing transient or state-transition–like patterns (e.g., sudden increase or decrease with a change in steady-state level) rather than monotonic changes.[27][30] These window-specific genes are likely to encode drivers or early markers of the state transition.[26][27][31]
+
+**Criterion 2: Correlation with Exhaustion and Aging-Like Program Scores.** Compute Spearman or Pearson correlations between each gene's expression (across all samples) and the pre-computed exhaustion-like and aging-like program scores. Genes showing strong positive correlation with either score (|r| >0.6, p <0.05) are presumably part of or downstream from these programs. Genes showing strong negative correlation (|r| <−0.6, p <0.05) with exhaustion-like or aging-like scores are conversely associated with preserved effector function or metabolic fitness. These correlations, particularly when computed separately for pre-window, window, and post-window intervals, reveal which genes are co-regulated with program scores and are thus plausible intervention targets (inhibiting correlated genes or activating anti-correlated genes should shift program scores favorably).[1][4][18]
+
+**Criterion 3: Hub or Regulatory Status in Modules.** Genes identified as hubs (high degree centrality) in co-expression modules associated with exhaustion or aging are plausible master regulators whose perturbation could have cascade effects throughout the module. WGCNA identifies module hubs as genes with the highest intramodular connectivity (kIM); genes with kIM >0.7 are considered highly connected within their module.[7] Alternatively, perform transcription factor activity inference (DoRothEA, SCENIC, or ARACNe-based GRN inference) to identify which transcription factors most strongly regulate genes within the exhaustion-like and aging-like modules; such TFs are high-priority targets because modulating TF activity can shift the entire downstream transcriptional program.[20][23][39][42] For example, if TOX and NR4A are identified as hub TFs regulating the exhaustion module, these become high-priority inhibition targets (based on known roles of TOX and NR4A in driving exhaustion[1][4][9][39][42][44]).[1][4][9][39][42][44]
+
+**Criterion 4: Reversibility and Directionality Logic.** For each candidate gene, a reversible directionality must be assigned:
+
+- **Inhibition targets:** Genes whose expression increases during the transition window and correlates positively with exhaustion/aging-like scores, particularly if they are hub regulators of those programs. Examples include TOX, NR4A1/2/3, BLIMP-1, IRF4, which are known drivers of exhaustion and whose inhibition in model systems enhances effector function.[1][4][9][39][42][44] Additionally, genes driving metabolic dysfunction (e.g., those promoting glycolysis at the expense of OXPHOS, or increasing oxidative stress via impaired antioxidant defense) are candidates for inhibition to restore metabolic fitness.[33][36][45][49]
+
+- **Activation targets:** Genes whose expression decreases during the transition window and correlates negatively with exhaustion/aging-like scores, particularly those known to promote stemness, metabolic fitness, memory formation, or effector capacity. Examples include TCF-1, BACH2, MYB, which support progenitor-like and memory-like states and whose maintenance or re-activation could prevent terminal exhaustion.[1][4][21][24][44] Additionally, genes promoting mitochondrial biogenesis and OXPHOS capacity (e.g., PGC-1α, TFAM) are candidates for activation to restore metabolic fitness and delay senescence.[33][36][49][52]
+
+### Network and Pathway Interpretation: Connecting Targets to Actionable Biology
+
+Each proposed target should be contextualized within known signaling and gene regulatory networks. The key exhaustion-promoting networks include:
+
+**The TOX-NFAT-NR4A Axis.** NFAT (Nuclear Factor of Activated T Cells) is activated by sustained TCR signaling (calcium-dependent calcineurin pathway) and drives a distinct transcriptional program in exhaustion distinct from acute activation.[1][4][18][39][42][44] Downstream of NFAT, the transcription factors TOX and NR4A family members (NR4A1/2/3) are induced and drive the exhaustion program including upregulation of inhibitory receptors (PD-1, TIM-3, LAG-3), sustained high expression of TCR-responsive genes, and suppression of memory-associated genes.[1][4][9][39][42][44] Inhibiting this axis (e.g., by blocking NFAT, TOX, or NR4A) is predicted to reduce exhaustion and restore effector function.[1][4][39][42][44] Conversely, genes antagonizing NFAT (such as AP-1 components Fos and Jun, which compete with NFAT for cooperative binding) become activation targets if their downregulation during exhaustion contributes to NFAT dominance.[1][4]
+
+**The TCF-1-BACH2-MYB Network for Stemness Maintenance.** TCF-1 (encoded by TCF7) and BACH2 are key transcription factors maintaining "stem-like" exhausted T cells (Tex^stem^), a self-renewing progenitor-like subset within the exhausted T cell pool.[1][4][21][24][44] These factors promote chromatin accessibility at stemness-associated loci and suppress terminal differentiation by antagonizing TFs like RUNX3 and BATF that drive terminal exhaustion.[1][4][21][44] During the transition window, loss of TCF-1 and BACH2 expression would predict entry into terminal exhaustion; thus, activation targets include genes supporting or reinforcing TCF-1 and BACH2 (e.g., transcriptional co-activators, cofactors supporting their activity) or inhibition of their antagonists (RUNX3, BATF).[1][4][21][44]
+
+**The BLIMP-1-IRF4-BATF Circuit for Terminal Differentiation.** BLIMP-1 (PRDM1) and IRF4 are increased in terminally exhausted T cells and promote a "terminal" exhaustion phenotype characterized by high PD-1 expression and suppression of effector cytokine production.[1][4][12][47] These TFs antagonize memory differentiation by repressing memory-associated genes and promote SASP-like features in aging T cells.[1][4][47][48] Inhibiting BLIMP-1 or IRF4 is predicted to prevent terminal exhaustion and suppress aging-like signatures.[1][4][47][48]
+
+**Metabolic Rewiring: PI3K/AKT/mTOR, AMPK, and Mitochondrial Biogenesis.** Exhausted and senescent T cells exhibit profound metabolic dysfunction characterized by impaired OXPHOS (oxidative phosphorylation), increased reliance on glycolysis, elevated oxidative stress, and reduced mitochondrial biogenesis.[33][36][45][49] This metabolic reprogramming is driven in part by reduced mTOR signaling (downstream of PD-1 and CTLA-4 co-inhibitory signals[18][33][36]) and increased AMPK and p38 MAPK signaling (drivers of senescence[18][48]). Activation targets for metabolic rejuvenation include PGC-1α (master regulator of mitochondrial biogenesis[33][36][49][52]), TFAM (mitochondrial transcription factor promoting OXPHOS[36]), and other genes promoting NAD+ metabolism and AMPK suppression in the context of restoring memory/effector metabolism.[33][36][45][49][52] Inhibition targets include genes promoting glycolysis at the expense of OXPHOS, excessive oxidative stress, or enhanced mTOR suppression in exhaustion.[33][36][45][49]
+
+**DNA Damage Response and p53 Pathway.** Senescent T cells exhibit persistent DNA damage signaling (activated ATM, ATR, TP53, and downstream checkpoint kinases)[2][32][35], which contributes to cell cycle arrest and further senescence. During the transition window toward aging-like dysfunction, activation of this DDR pathway is expected.[2][32][35] Therapeutic targets could include selective modulation of this pathway (e.g., inhibiting pro-apoptotic arms while preserving growth-arrest functions) or restoration of DNA repair capacity, though this requires careful consideration of cancer immunity effects.[2][32][35]
+
+### Evidence Package per Target: Expression, Correlation, Module Membership, and Mechanistic Rationale
+
+For each proposed target, a comprehensive evidence package is assembled:
+
+**Expression and Temporal Dynamics.** (a) Plot the target gene's log2-normalized expression (y-axis) against time post-tumor challenge (x-axis), grouped by time point with replicates shown as individual points, and include a smooth trend line. (b) Quantify the log2 fold change in expression when comparing the transition window to pre-window and post-window intervals; report FDR-adjusted p-values (from DESeq2 or limma). (c) If the gene is window-specific, highlight the temporal localization of the expression change.[26][31]
+
+**Correlation with Program Scores.** Report Spearman or Pearson correlation coefficient between the target's expression and exhaustion-like program score, aging-like program score, and program score difference (exhaustion - aging). If the target is a proposed inhibition candidate, expect positive correlation with exhaustion/aging scores; if an activation candidate, expect negative correlation (indicating association with preserved function as scores decrease). Report 95% confidence intervals for correlations and p-values (accounting for autocorrelation across time-dependent samples if appropriate).[1][4][18]
+
+**Module Membership and Hubness.** For targets identified via WGCNA, report (a) the module assignment (e.g., "exhaustion_turquoise module, 150 genes"), (b) intramodular connectivity (kIM) percentile rank within the module (hub genes have kIM >0.7), (c) correlation of the target's expression with the module eigengene (r > 0.7 for core members), and (d) the module's enrichment score and FDR for hallmark exhaustion or aging gene sets, confirming that the module is functionally coherent and biologically relevant.[7]
+
+**Transcriptional Regulation and Network Position.** (a) If TF activity inference has been performed (e.g., DoRothEA), report the target's inferred activity changes over time (e.g., "TOX activity increases 2.5-fold in the transition window relative to pre-window baseline"). (b) Perform motif analysis or database queries (e.g., ChEA, Enrichr) to identify transcription factors predicted to regulate the target; report top predicted regulators and p-values. (c) For targets that are themselves transcription factors, perform downstream target enrichment (e.g., "TOX targets are enriched for exhaustion marker genes: PDCD1 [p=1e-20], HAVCR2 [p=1e-18], LAG3 [p=1e-15]"). (d) Visualize the target within a curated or inferred gene regulatory network diagram showing its upstream regulators, direct targets, and network hubs.[20][23][39][42]
+
+**Effect Size and Mechanistic Rationale for Reversal.** For inhibition targets, predict the effect of reduced expression on program scores. For example: "Reducing NR4A3 expression is predicted to (1) de-repress TOX-regulated effector genes (e.g., IFNG, TNF), (2) reduce histone acetylation at exhaustion loci via NR4A3-HDAC interactions, and (3) lower exhaustion score by ~0.3–0.5 points based on the observed correlation between NR4A3 expression and exhaustion score (r=0.68)."[1][4][39][42] For activation targets, similarly predict score reduction and effector restoration based on known molecular mechanisms and the observed correlations.[1][4][21][44][49]
+
+**Known Caveats and Off-Target Risks.** For each target, note: (a) potential pleiotropy (e.g., TCF-1 also regulates memory T cell development, so excessive activation could inadvertently drive memory at the expense of effector function[4][44]); (b) risk of impairing anti-tumor immunity (e.g., completely ablating NFAT signaling might reduce TCR responsiveness globally[1][4]); (c) expression in other immune or non-immune cells that could be unintentionally affected by systemic modulation.[1][4][39][42]
+
+### Ranked Target Nomination and Prioritization Framework
+
+Based on the criteria above, generate a prioritized list of top rejuvenation targets. A suggested ranking framework incorporates:
+
+1. **Evidence Tier:** Targets with multi-layered evidence (window-specific expression + correlation with scores + hub status + known mechanistic literature) score highest (Tier 1: Gold Standard). Targets with 2–3 independent evidence lines score lower (Tier 2: Silver). Single-evidence targets score lowest (Tier 3: Bronze).[1][4][21][39][42][44]
+
+2. **Effect Size:** Targets with large effect sizes (|log2FC| >1 in window vs pre-window; strong correlation |r| >0.65 with program scores) are ranked higher than modest-effect targets.[26][31]
+
+3. **Specificity to Exhaustion/Aging vs Off-Target Pleiotrophy:** Targets whose modulation specifically affects exhaustion markers without broadly impacting T cell survival or other functions are ranked higher. Targets with known pleiotropy in other immune contexts (e.g., involving global TCR signaling, survival pathways) are ranked lower due to off-target risk.[1][4][39][42]
+
+4. **Biological Actionability:** Targets whose genes encode "druggable" proteins (e.g., kinases, transcription factors with known inhibitors, receptors with available antagonists[40]) are ranked higher than targets requiring genetic approaches.[37]
+
+### Example Top Targets (Illustrative Framework)
+
+Using the framework above, hypothetical top rejuvenation targets might include:
+
+**Tier 1—Inhibition Target: NR4A3.** Evidence: (1) NR4A3 expression increases 3.2-fold in the transition window vs pre-window (log2FC=1.68, FDR <0.001); (2) NR4A3 expression correlates positively with exhaustion score (r=0.71, p <0.001) and aging-like score (r=0.58, p <0.01); (3) NR4A3 is a hub gene (kIM=0.82) in the exhaustion module; (4) known literature establishes NR4A and TOX as downstream NFAT effectors driving exhaustion[39][42][44]; (5) NR4A inhibition by genetic deletion enhances effector function in model systems[39][42]. Proposed mechanism: inhibiting NR4A3 would reduce NFAT-driven exhaustion program activation and permit restoration of effector genes, thereby reducing exhaustion score. Caveats: NR4A family members regulate T cell survival signals (apoptosis pathways); excessive inhibition could cause T cell death rather than rejuvenation.[39][42]
+
+**Tier 1—Activation Target: PGC-1α.** Evidence: (1) PGC-1α expression decreases 2.8-fold from pre-window to window (log2FC=−1.49, FDR <0.001), indicating loss during transition; (2) PGC-1α expression correlates negatively with aging-like score (r=−0.64, p <0.001) and is reduced in exhausted vs control T cells; (3) PGC-1α is a hub in the "effector_metabolic" module (kIM=0.76); (4) overexpression of PGC-1α in CD8 T cells enhances memory formation, mitochondrial biogenesis, OXPHOS capacity, and anti-tumor immunity[49][52]; (5) reduced PGC-1α expression is causally linked to metabolic dysfunction and exhaustion in chronic infection and cancer models[36][49]. Proposed mechanism: enforced expression of PGC-1α in tumor-infiltrating T cells would restore mitochondrial biogenesis, enhance OXPHOS, reduce oxidative stress, and de-repress memory/effector differentiation capacity, thereby reducing aging-like score and restoring effector function. Caveats: driving excessive mitochondrial biogenesis might, in some contexts, inadvertently promote memory over effector function; feasibility of ex vivo genetic engineering (for CAR-T) vs in vivo delivery to tumor TILs.[33][36][49][52]
+
+**Tier 2—Inhibition Target: BLIMP-1.** Evidence: (1) BLIMP-1 increases 1.9-fold in transition window (log2FC=0.93, FDR <0.01); (2) positive correlation with exhaustion score (r=0.61, p <0.01); (3) hub gene in exhaustion module; (4) literature support: BLIMP-1 represses effector differentiation and promotes terminal exhaustion[1][4][47]. Proposed mechanism: reducing BLIMP-1 would de-repress effector genes and memory-associated factors, reducing terminal exhaustion. Caveats: BLIMP-1 has diverse roles in T cell differentiation; inhibition might affect other T cell subsets or B cell function if modulation is not T cell–specific.[1][4][47]
+
+## Optional (Bonus): Therapeutic Mapping from Targets to Existing Drugs and Compounds
+
+### Harmonization and Drug-Target Matching
+
+Once rejuvenation target genes are nominated, a final step is to query publicly available drug–target databases to identify existing or investigational compounds that could modulate these targets. The Drug-Gene Interaction database (DGIdb, dgidb.org) and similar resources provide curated collections of known drug-gene interactions across multiple data sources.[37][40] The workflow is as follows:
+
+**Step 1: Identifier Harmonization.** Convert target gene symbols (e.g., "NR4A3") to standardized identifiers (HGNC symbol, Entrez gene ID, Ensembl ID) compatible with drug-target databases. Many databases support multiple identifier types; matching via gene symbol is typical but should be validated against other identifiers to avoid synonym issues.[37][40]
+
+**Step 2: Query Drug-Target Database.** Search DGIdb or similar resources for all known drugs/compounds interacting with the target gene, retrieving the drug name, mechanism of action (inhibitor, antagonist, agonist, activator), and interaction evidence (curated literature, clinical data, computational prediction).[37][40]
+
+**Step 3: Direction Matching and Filtering.** For inhibition targets (e.g., NR4A3), retain only drugs annotated as "inhibitor," "antagonist," or "negative modulator"; filter out agonists, activators, or compounds with unclear mechanisms.[37][40] For activation targets (e.g., PGC-1α), retain compounds annotated as "activator" or "agonist."[37][40] Remove compounds whose mechanism is misaligned (e.g., an NR4A inhibitor would not be matched to an activation target).[37][40]
+
+**Step 4: Prioritization by Specificity and Status.** Rank retained compounds by: (a) target specificity (single-target compounds ranked higher than off-target polypharmacology); (b) development stage (FDA-approved > clinical trial > preclinical); (c) immune system relevance (compounds with known T cell penetrance or immune cell effects ranked higher).[37][40]
+
+**Step 5: Feasibility Assessment.** For each top-ranked compound, briefly assess: (a) whether the compound is a small molecule (cell-permeable), biologic (antibody, protein), or nucleic acid therapeutic; (b) known bioavailability and biodistribution (particularly tumor tissue and lymphoid organ penetration for immune therapeutics); (c) known toxicities or safety liabilities; (d) whether the compound's effects on the target in the context of T cells have been experimentally validated in prior studies.[37][40]
+
+### Illustrative Therapeutic Mapping Example
+
+For the target **NR4A3 (inhibition target):** DGIdb might reveal compounds such as GSK5525 (NR4A1/3 inverse agonist, preclinical)[42], or other NR4A-selective antagonists in development. A feasibility summary would note: "NR4A inverse agonists are small molecules with cell penetrance; however, off-target effects on other nuclear receptors must be assessed. No prior data available on NR4A inverse agonist effects specifically on tumor-infiltrating CD8 T cells; efficacy and safety in the context of anti-tumor immunity require validation."[42]
+
+For the target **PGC-1α (activation target):** DGIdb might reveal compounds such as resveratrol or other PGC-1α activators (preclinical); however, polypharmacology (resveratrol activates multiple sirtuins and AMP-activated protein kinase) means off-target effects are likely.[37][40] Alternatively, genetic approaches (lentiviral delivery of engineered PGC-1α) might be more specific, though limited to ex vivo CAR-T cell engineering contexts.[37][40]
+
+For **BLIMP-1 (inhibition target):** Specific BLIMP-1 inhibitors are less well-characterized in current drug databases, but indirect approaches (e.g., IRF4 inhibitors, NFAT inhibitors) that suppress BLIMP-1 expression indirectly might be available.[37][40] This highlights a translational gap wherein many high-priority immune targets lack selective small-molecule inhibitors and may require genetic approaches or biologics.[37][40]
+
+---
+
+## Discussion: Integrative Framework and Future Directions
+
+### Synthesis of the Exhaustion–Aging–Death Axis as a Multi-Layered Therapeutic Target
+
+The systematic analysis of time-course bulk RNA-seq outlined in this report frames T cell exhaustion not as a static, monolithic state but as a dynamic trajectory along which T cells transition through reversible exhaustion, terminal exhaustion overlapping with early aging-like programs, and ultimately commitment to senescence or cell death.[1][2][4][18][48] This perspective is supported by recent single-cell transcriptomics and multi-omic studies documenting hierarchical subsets of exhausted T cells (progenitor-like, intermediate, terminally exhausted) with distinct epigenetic and metabolic profiles and differential sensitivity to checkpoint blockade.[1][4][9][24] The identification of a discrete transition window via change-point detection and multi-signal confirmation offers a temporal anchor for intervention: rather than attempting to rejuvenate T cells that have already committed to terminal exhaustion and senescence (a state marked by extensive epigenetic remodeling and metabolic paralysis), targeting the transition window—when reversibility is theoretically highest and core decision-making transcriptional networks are most malleable—may offer greater therapeutic efficacy.
+
+The nomination of multi-layered rejuvenation targets (spanning transcriptional regulation, metabolic rewiring, and death pathway suppression) reflects the multi-factorial nature of T cell dysfunction in tumors. Targeting a single pathway (e.g., TOX inhibition alone) may be insufficient if metabolic dysfunction and senescence-associated signaling are also driving dysfunction; conversely, a combination approach addressing TOX/NR4A/BLIMP-1 (transcriptional rewiring) + PGC-1α/TFAM (metabolic restoration) + p53/DNA damage response modulation (senescence suppression) might achieve more complete rejuvenation.[1][2][4][33][36][48][49]
+
+### Limitations and Future Directions
+
+Several important limitations and areas for future investigation warrant mention:
+
+**Bulk RNA-seq Limitation and Single-Cell Validation.** Bulk RNA-seq data, while informative at the population level, mask heterogeneity within the T cell population. A subset of cells may transition to aging-like/death states while others remain in earlier exhaustion states; bulk scoring potentially averages these distinct trajectories. Future work should validate key findings via single-cell RNA-seq or single-cell multi-omics (e.g., 10x Genomics 5' + TCR; CITE-seq) to resolve cell-level kinetics and identify truly irreversible vs reversible transitions at single-cell resolution.[1][2][4]
+
+**Temporal Resolution and Window Precision.** The identified transition window's resolution is limited by sampling frequency. If time points are spaced 3–7 days apart, the true window onset may lie between samples. Higher-frequency sampling (e.g., daily or every 12 hours during the candidate transition window) would improve precision.[26][31]
+
+**Epigenetic and Chromatin Dimension.** Bulk RNA-seq captures transcription but not epigenetic state (histone modifications, DNA methylation, chromatin accessibility). Time-course ATAC-seq or ChIP-seq would reveal epigenetic barriers to rejuvenation (e.g., repressive histone marks that are difficult to reverse even if transcription factors are inhibited).[1][9][12] Such epigenetic data would strengthen justification for why certain targets are prioritized and inform whether epigenetic modulation (HDAC inhibitors, BET inhibitors, etc.) should be combined with transcriptional/metabolic interventions.[1][9][12]
+
+**Functional Validation and Orthogonal Perturbation.** Proposed targets should be validated via ex vivo perturbation experiments (CRISPR-Cas9 knockout or shRNA knockdown for inhibition targets; enforced overexpression for activation targets) applied to primary tumor-infiltrating T cells or T cells cultured under chronic antigen stimulation in vitro.[12][18][27] Functional readouts should include restoration of effector cytokine production (IFN-γ, TNF-α, IL-2), proliferation (as assessed by CFSE dilution or Ki67), and killing capacity (cytotoxicity assays), plus measurement of whether exhaustion and aging-like program scores indeed reverse upon target modulation.[1][4][12][18][27]
+
+**In Vivo Efficacy and Immune Phenotyping.** The strongest validation comes from in vivo studies wherein proposed targets are modulated (via genetic approaches, antibody-mediated antagonism, or small-molecule inhibitors) in mouse tumor models, followed by assessment of TIL exhaustion phenotype (flow cytometry), tumor growth kinetics, and survival.[1][4][12][49] Such studies should distinguish whether rejuvenation occurs via ICB-like (PD-1/PD-L1 blockade) vs mechanistically distinct pathways, and whether combinations are synergistic.[1][4][12][49]
+
+**Metabolic Phenotyping and Bioenergetic Profiling.** Beyond transcriptomics, time-course measurement of T cell bioenergetics (Seahorse oxygen consumption rate and extracellular acidification rate measurements; mitochondrial membrane potential via TMRM; NAD+ and NADH ratios) and metabolite profiling (targeted metabolomics for glucose, lactate, amino acids, lipids) would directly link molecular targets to functional metabolic restoration.[33][36][45][49]
+
+---
+
+## Conclusion
+
+The identification and reversal of T cell exhaustion in the context of chronic antigen exposure represents one of the most promising frontiers in cancer immunotherapy beyond conventional checkpoint blockade. This report has presented a comprehensive, RNA-seq–grounded analytical framework for decomposing the progression from exhaustion through aging-like dysfunction toward cell death, identifying discrete transition windows amenable to therapeutic intervention, and nominating gene-level rejuvenation targets supported by multi-layered molecular evidence. The proposed approach integrates unsupervised discovery (WGCNA, NMF, time-series DE), supervised validation against public aging/senescence resources (GenAge, MSigDB), change-point statistical testing, and mechanistic network analysis to prioritize targets with high confidence and clear directionality (activation vs inhibition). By positioning exhaustion not as a terminal or monolithic state but as a dynamic trajectory with reversible and irreversible phases, this framework opens therapeutic possibilities beyond ICB alone: targeting the core transcriptional drivers (TOX, NR4A, BLIMP-1, NFAT), restoring metabolic fitness (PGC-1α, mitochondrial biogenesis), and suppressing senescence-associated pathways (p53, DNA damage response, inflammatory SASP) during the identified critical transition window offers the potential to "reset" T cell programming and restore anti-tumor efficacy. Future work combining single-cell transcriptomics, epigenomic profiling, functional perturbation studies, and in vivo validation in syngeneic and patient-derived tumor models will refine this framework and translate candidate targets into clinical therapeutic strategies for durable, sustained immune rejuvenation.
+
+---
+
+# Completed Answer (from BlueX)
+## (A) Quantification of Exhaustion and Aging-Like Programs
+
+### (A1) What can be quantified from the provided files (and what cannot)
+**Directly available from the described inputs**
+- Time-course differential expression (DE) tables for days **5, 7, 14, 21, 35, 60** (each vs a reference group), each containing per-gene:
+  - `log2FoldChange`, `padj`
+  - **group mean expression** (mean TPM columns for the two compared groups)
+
+**Key limitation of the provided summary (must be explicit)**
+- The transcript here does **not** include the actual DE tables themselves (gene-level rows/values). Therefore, this report can define signatures and scoring rigorously, but it **cannot print the actual computed score trajectories or per-gene log2FC/padj values** without access to those tables. All “RNA-seq–based evidence” items below are specified as *exact fields to extract* from the DE tables; they should be populated directly from the provided files.
+
+**Consequence**
+- Program scores can be computed at **timepoint (group-mean) resolution** using the `meanTPM` columns, producing one exhaustion score and one aging-like score per day.
+
+---
+
+### (A2) Build a genes × time matrix from mean TPM
+Construct a time series matrix \(E(g,d)\) where \(g\) is gene and \(d\in\{0,5,7,14,21,35,60\}\) is day:
+1. Align genes across DE tables by gene symbol/ID column.
+2. For each day \(d\), take the **day-\(d\)** meanTPM column as \(E(g,d)\).
+3. Take the **reference** meanTPM column as \(E(g,0)\) (verify consistency across DE tables; if multiple “day 0” vectors exist, average them and record dispersion).
+
+Transform expression for scoring:
+\[
+X(g,d)=\log_2(E(g,d)+1)
+\]
+and standardize per gene across days:
+\[
+Z(g,d)=\frac{X(g,d)-\mu_g}{\sigma_g}
+\]
+
+**Minimum QC to report**
+- Correlation among reconstructed \(E(g,0)\) vectors across DE tables (should be high if the same reference was used).
+- Filter low-expression genes for scoring (e.g., max TPM across days > 1).
+
+---
+
+### (A3) Exhaustion signature and exhaustion score (data-derived)
+**Goal:** derive an exhaustion program *from the time-course itself*, using early induction and persistence under chronic stimulation.
+
+**TexSig (exhaustion signature) derivation (operational)**
+Select genes satisfying:
+1. **Early induction:** significant at day 5 and/or day 7 vs baseline  
+   \(\text{padj}<0.05\) and \(\log_2FC>1\)
+2. **Persistence:** still non-negative (or still significant) at day 14 and/or day 21  
+   e.g., \(\log_2FC>0\) (optionally \(\text{padj}<0.1\) for persistence)
+
+**Exhaustion score**
+\[
+\text{ExhaustionScore}(d)=\frac{1}{|TexSig|}\sum_{g\in TexSig} Z(g,d)
+\]
+
+**Required deliverables to satisfy the task**
+- A table with ExhaustionScore for each day: **0, 5, 7, 14, 21, 35, 60**
+- A heatmap of \(Z(g,d)\) for TexSig genes (genes clustered by temporal pattern)
+
+---
+
+### (A4) Aging-like signature and aging-like score (data-derived, validated against aging resources)
+**Goal:** define a late-emergent, stress/aging-like program that is temporally downstream of classical exhaustion.
+
+**AgingSig derivation (operational)**
+Select genes satisfying:
+1. **Late induction:** significant at day 35 and/or day 60 vs baseline  
+   \(\text{padj}<0.05\) and \(\log_2FC>1\)
+2. **Not early:** minimal change early (to isolate a late-onset program)  
+   e.g., day 5 and day 7: \(\text{padj}>0.1\) **or** \(|\log_2FC|<0.5\)
+
+**Aging-like score**
+\[
+\text{AgingLikeScore}(d)=\frac{1}{|AgingSig|}\sum_{g\in AgingSig} Z(g,d)
+\]
+
+---
+
+### (A5) Required validation of signatures (addresses “signature derivation lacks validation”)
+To ensure TexSig and AgingSig are not arbitrary:
+1. **Independence / temporal separability**
+   - Report overlap size \(|TexSig \cap AgingSig|\) and Jaccard index.
+   - Show that TexSig genes peak earlier than AgingSig genes (e.g., median day of maximal \(Z\) differs).
+2. **Aging-resource enrichment for AgingSig**
+   - Compute overlap enrichment of AgingSig with **GenAge** and with **MSigDB aging/senescence gene sets** (hypergeometric test using expressed genes as background).
+   - Report: overlap count, odds ratio (or enrichment ratio), and p-value/FDR.
+3. **Exhaustion-biology annotation for TexSig**
+   - Report whether canonical exhaustion modules (inhibitory receptors/activation-to-dysfunction TF axes) are enriched in TexSig *as an annotation check* (not as the defining criterion).
+
+**Deliverables**
+- A concise validation table:
+  - \(|TexSig|, |AgingSig|, |TexSig\cap AgingSig|\)
+  - GenAge/MSigDB enrichment statistics for AgingSig
+
+---
+
+## (B) Identification of the Critical Transition Window
+
+### (B1) Non-circular operational definition of a “critical transition window”
+Define the transition window as the earliest interval where **all** hold:
+1. **Tex already established:** ExhaustionScore is high relative to baseline (e.g., exceeds its day-0 value by ≥ 1 SD).
+2. **Aging-like accelerates:** AgingLikeScore shows its **largest positive increment** between adjacent sampled days.
+3. **Transcriptome rewiring:** the set of significant DE genes shows a **qualitative shift** in enrichment (from exhaustion/activation modules to stress/aging/senescence/apoptosis modules), assessed by comparing enrichment outputs across adjacent timepoints.
+
+This definition avoids assuming any specific day range in advance.
+
+---
+
+### (B2) How to justify a discrete transition vs gradual continuum (what must be reported)
+Using the computed score trajectories:
+1. **Change-point / breakpoint evidence**
+   - Fit segmented regression (or compare piecewise-linear vs single-linear fits) for AgingLikeScore vs day.
+   - Report: breakpoint day (restricted to the sampling grid) and model improvement (e.g., ΔAIC).
+2. **Score-difference peak**
+   - Compute \(\Delta \text{AgingLikeScore}(d_{i}\rightarrow d_{i+1})\) across adjacent days.
+   - Define the **transition window** as the interval with maximal \(\Delta\), provided ExhaustionScore is already elevated.
+3. **Functional category “appearance”**
+   - For each day comparison, run the same gene-set enrichment method and report when aging/senescence/stress/apoptosis categories first become significant.
+
+**Deliverable statement (to be filled from computed results)**
+- “Critical transition window: day \(d_a\) to day \(d_b\)” (one adjacent interval is acceptable given sparse sampling).
+- “Justification: breakpoint at day \(d_a\)–\(d_b\); maximal \(\Delta\) AgingLikeScore; emergence of aging/stress gene sets.”
+
+**Sampling limitation**
+- With days {0, 5, 7, 14, 21, 35, 60}, the finest resolvable window is **between adjacent sampled timepoints** (e.g., 14→21 or 21→35). Any statement finer than that is unsupported.
+
+---
+
+## (C) Proposal of Rejuvenation Target Genes
+
+### (C1) Data-grounded target selection (must be applied within the transition window)
+A candidate rejuvenation target must satisfy:
+
+1. **Transition-window specificity**
+   - Be significantly DE in the identified transition comparison (e.g., day 14→21 or 21→35 when represented as vs baseline in the DE tables), with \(\text{padj}<0.05\).
+2. **Directional consistency with “rejuvenation”**
+   - If gene expression increases with ExhaustionScore and/or AgingLikeScore → propose **inhibition**.
+   - If gene expression decreases as those scores rise → propose **activation**.
+3. **Program linkage**
+   - The gene is either:
+     - a member of TexSig or AgingSig, **or**
+     - strongly correlated with one of the scores across days (e.g., Spearman |ρ| high using \(E(g,d)\)).
+4. **Pathway/module coherence**
+   - The gene sits in enriched modules observed in the transition window (TF circuits, stress response, apoptosis, metabolic fitness).
+
+**Required RNA-seq evidence to present per target (populate from DE tables)**
+- Expression trend: meanTPM across days (from \(E(g,d)\))
+- DE statistics: \(\log_2FC\) and padj at each available day vs baseline (5,7,14,21,35,60)
+- Score association: correlation sign with ExhaustionScore/AgingLikeScore (computed from time series)
+
+> Because the DE tables are not included in this transcript, the evidence fields below are specified in a “fill-from-table” format. The final submission must include the actual numbers for the chosen targets.
+
+---
+
+### (C2) Candidate targets (mechanistically aligned; must be retained only if they meet the RNA-seq evidence criteria above)
+
+#### (C2.1) Exhaustion-maintenance TF axis (inhibit if induced in the transition window)
+1) **TOX — inhibit**  
+- **RNA-seq evidence to report:** \(\log_2FC\) and padj at days 14/21/35/60 vs baseline; meanTPM trend across days; positive correlation with ExhaustionScore.  
+- **Network context:** exhaustion-state maintenance TF program.  
+- **Rejuvenation logic:** lowering TOX-aligned transcription should reduce Tex program intensity during the window when aging-like features begin to rise.
+
+2) **NR4A1 / NR4A2 / NR4A3 — inhibit**  
+- **RNA-seq evidence:** transition-window upregulation (stronger at 14/21/35 than 5/7), padj<0.05; positive correlation with ExhaustionScore.  
+- **Context:** chronic stimulation-responsive TFs reinforcing dysfunctional adaptation.  
+- **Logic:** inhibition targets a proximal transcriptional driver expected to shift expression away from TexSig-high states.
+
+3) **PRDM1 (BLIMP-1) — inhibit**  
+- **RNA-seq evidence:** induction coincident with the transition interval and persistence into later days; positive correlation with AgingLikeScore or with combined (Tex+aging) state.  
+- **Context:** terminal differentiation/dysfunction-associated regulation.  
+- **Logic:** reducing PRDM1-aligned commitment is expected to preserve a less terminal transcriptional profile.
+
+4) **IRF4 and/or BATF — inhibit**  
+- **RNA-seq evidence:** transition-window induction; co-variation with TexSig and late stress signatures; padj<0.05.  
+- **Context:** activation-to-dysfunction transcriptional circuit.  
+- **Logic:** dampening this circuit should weaken reinforcement loops that push exhausted cells toward late dysfunctional/aging-like states.
+
+#### (C2.2) Progenitor/maintenance counter-program (activate if lost in the transition window)
+5) **TCF7 — activate**  
+- **RNA-seq evidence:** downregulation emerging during the transition window (negative \(\log_2FC\), padj<0.05), decreasing meanTPM with time; negative correlation with ExhaustionScore.  
+- **Context:** maintenance of less-differentiated T cell programs.  
+- **Logic:** restoring TCF7-associated transcription is expected to shift the bulk profile away from terminal exhaustion/aging-like trajectories.
+
+6) **BACH2 — activate**  
+- **RNA-seq evidence:** transition-window downregulation and negative correlation with exhaustion/aging scores.  
+- **Context:** restraint of terminal differentiation programs.  
+- **Logic:** activation counterbalances commitment toward late dysfunctional states.
+
+#### (C2.3) Metabolic/mitochondrial fitness (activate if declining with aging-like rise)
+7) **PPARGC1A (PGC-1α) — activate**  
+- **RNA-seq evidence:** reduced expression during/after transition window (negative \(\log_2FC\), padj<0.05), coordinated with downregulation of mitochondrial/OXPHOS module if observed in enrichment.  
+- **Context:** mitochondrial biogenesis and metabolic resilience.  
+- **Logic:** improving metabolic fitness is predicted to oppose late stress/aging-like transcriptional escalation that precedes death.
+
+8) **TFAM — activate**  
+- **RNA-seq evidence:** downregulation during/after transition window; co-decline with mitochondrial maintenance signatures; negative correlation with AgingLikeScore.  
+- **Context:** mitochondrial genome maintenance and function.  
+- **Logic:** supports cellular integrity to reduce progression toward terminal dysfunction programs.
+
+---
+
+### (C3) How to rank and finalize targets (must be shown with dataset-derived numbers)
+Finalize a ranked shortlist by:
+1. Largest absolute effect size in the **transition interval** (from DE tables).
+2. Strongest correlation with AgingLikeScore increase (|ρ| across days).
+3. Clear module membership (TexSig/AgingSig or enriched pathway context).
+4. Adequate expression (avoid low-TPM artifacts).
+
+**Minimum target-evidence table (required)**
+For each selected target gene:
+- meanTPM at days 0,5,7,14,21,35,60  
+- \(\log_2FC\), padj at days 5,7,14,21,35,60 vs baseline  
+- Correlation with ExhaustionScore and AgingLikeScore (sign and magnitude)  
+- Intervention direction (inhibit/activate) with 1–2 sentence mechanistic justification tied to the scores
+
+---
+
+## (D) Optional (Bonus): Therapeutic Mapping
+
+The therapeutic mapping step requires the “provided drug–target dataset.” That dataset is not present in the transcript here; therefore, specific drug names cannot be listed without introducing unprovided information.
+
+**If the drug–target table is available, the required output is**
+- For each finalized target gene: drugs/compounds that match the direction (**inhibitor** for inhibition targets; **agonist/activator** for activation targets), including mechanism annotation present in the dataset.
+
+**Limitations to state when reporting**
+- Many TFs (e.g., TOX, PRDM1) may have limited direct small-molecule specificity in typical drug–target catalogs; mapping may return sparse hits or indirect modulators.
+- Bulk RNA-seq reflects both within-cell changes and shifting cell-state composition; drug feasibility should be interpreted accordingly.
+
+---
+
+## Assumptions and limitations (kept explicit to avoid overstated claims)
+1. **Baseline/reference identity must be verified** from DE table headers/filenames; the scoring assumes a shared day-0-like reference.
+2. **Scores are group-mean (timepoint) scores** derived from meanTPM, not per-replicate distributions, unless a sample-level expression matrix is provided.
+3. **Transition window resolution is limited** to adjacent sampled days; claims of finer timing are unsupported.
+4. **Gene-level target claims require numeric RNA-seq evidence** (log2FC/padj/meanTPM trends). This report provides the required extraction/validation framework but cannot print those values without the DE tables.
+
+---
+
+# Red Team Review (from RedAgent)
+## Reliability Score
+- Score: 42
+- Rationale: The report provides a methodologically sophisticated framework with well-defined operational criteria for signature derivation, scoring, and target selection. However, it fundamentally fails to deliver the core deliverables requested in the task: no actual scores are computed, no specific transition window is identified, no gene-level evidence tables are populated, and no concrete results are presented. The answer reads as a detailed protocol or analysis plan rather than a completed scientific analysis. While the framework is sound, the absence of executed analysis means the scientific question remains unanswered.
+
+## Critiques / Limitations / Risks (in priority order)
+
+1. **Critical: No actual results are presented.** The task explicitly requests visualization of score trajectories, identification of a specific transition window, and RNA-seq-based evidence for proposed targets. The report repeatedly states it "cannot print the actual computed score trajectories" and uses placeholder language like "fill-from-table." This renders the answer incomplete as a scientific report—it is a methodology document, not an analysis.
+
+2. **Signature derivation criteria are arbitrary and unvalidated.** The thresholds for TexSig (padj<0.05, log2FC>1 at days 5/7, persistence at days 14/21) and AgingSig (padj<0.05, log2FC>1 at days 35/60, minimal early change) are stated without justification. Why log2FC>1 rather than 0.5 or 1.5? Why these specific day combinations? Sensitivity analysis to threshold choices is absent.
+
+3. **Circular reasoning risk in transition window identification.** The report defines the transition window based on when AgingLikeScore accelerates, but AgingSig is defined as genes induced at days 35/60. This creates a methodological circularity where the transition window will necessarily fall before days 35/60 by construction, not by biological discovery.
+
+4. **Target gene selection lacks data-driven prioritization.** Eight candidate targets are proposed based on prior biological knowledge (TOX, NR4A family, TCF7, etc.), but the report explicitly states it cannot verify whether these genes meet the stated selection criteria in the actual dataset. The targets may not even be differentially expressed in this specific experiment.
+
+5. **Aging-resource validation is proposed but not executed.** While the report correctly identifies the need to validate AgingSig against GenAge and MSigDB, no enrichment statistics are provided. The claim that the aging-like signature represents genuine aging biology remains unsubstantiated.
+
+6. **Temporal resolution limitations are acknowledged but not addressed analytically.** With only 7 timepoints spanning 60 days, the sparse sampling fundamentally limits transition window precision. The report acknowledges this but does not discuss how this affects confidence in any identified window or whether interpolation/smoothing approaches might help.
+
+7. **Bulk RNA-seq compositional confounding is underaddressed.** The report briefly mentions that "bulk RNA-seq reflects both within-cell changes and shifting cell-state composition" but does not propose deconvolution or discuss how cell death (the endpoint of the axis) would systematically bias expression estimates toward surviving cell populations.
+
+8. **Drug-target mapping section is essentially empty.** The bonus section states the drug-target dataset is "not present in the transcript" and provides no specific therapeutic candidates, despite this being a key translational deliverable.
+
+9. **Statistical rigor of score-based analyses is underspecified.** Using group-mean TPM values yields only 7 data points for trajectory analysis. Fitting segmented regression or computing meaningful correlations with n=7 has severe statistical limitations that are not discussed.
+
+10. **Reproducibility concerns.** The analysis depends on specific column naming conventions in DE tables ("meanTPM columns") that may not match actual file formats. No code or pseudocode is provided to ensure reproducibility.
+
+## Final Short Summary to Attach
+
+This report presents a well-structured analytical framework for addressing the exhaustion-aging-death axis problem but fails to execute the proposed analyses or deliver concrete results. All core deliverables—score trajectories, transition window identification, and gene-level evidence tables—remain as placeholders. The proposed methodology contains reasonable elements but also risks of circularity in signature/transition definitions and arbitrary threshold choices. Target genes are selected based on prior literature rather than data-driven discovery from the provided dataset. As submitted, this constitutes an analysis plan rather than a completed scientific report, leaving the original scientific question substantively unanswered.
+
+---
+
+# Task
+Create the final deliverable that:
+- Preserves the problem's requested structure/numbering.
+- Uses the completed answer as the main content (edit only if needed to match the problem format).
+- If the Search Findings contain references (e.g., citations/links/DOIs), add a **References** section and cite them in-text using numeric markers like [1], [2].
+- Do NOT invent references; only use what is present in Search Findings.
+- Appends the red-team review section verbatim at the end under the heading:
+
+## Red Review (Critique + Reliability Score)
+
+# Output Requirements
+- Write in English.
+- Output only the final deliverable text.
+

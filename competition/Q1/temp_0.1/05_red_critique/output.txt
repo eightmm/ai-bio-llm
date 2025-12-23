@@ -1,0 +1,25 @@
+## Reliability Score
+- Score: 78
+- Rationale: The report demonstrates strong diagnostic reasoning across all incidents, correctly identifying plausible root causes that align with the observations provided. The troubleshooting logic is generally sound and follows standard Ribo-seq failure modes. However, the analysis lacks direct engagement with the actual provided artifacts (protocol.md, reference.fa, reads.fastq.gz), relying instead on generic best practices. The data analysis section (1-6) provides a processing plan rather than executed results, which is a significant gap given that deliverables explicitly required CSV files, plots, and an HTML report. Several recommendations lack specificity regarding the actual protocol text.
+
+## Critiques / Limitations / Risks (in priority order)
+
+1. **Failure to execute the data analysis deliverables (1-6)**: The problem explicitly required `counts_raw.csv`, `counts_dedup.csv`, histogram plots, and an HTML report as deliverables. The answer provides only a methodological plan without actual execution. This is a critical omission—the "written interpretation" section acknowledges the data is "technically processable" but does not demonstrate processing was performed. No actual counts, plots, or QC metrics are presented.
+
+2. **No direct reference to protocol.md content**: Throughout all incident analyses, the report refers generically to "the protocol" without citing specific sections, step numbers, or text from the provided `protocol.md`. This undermines the constraint that "core answers must be supported by the protocol text." For example, Incident E discusses oligo specifications but does not verify what `protocol.md` actually specifies versus what would be correct.
+
+3. **UMI structure not verified against actual data**: The report discusses UMI extraction issues (Incident D) and proposes entropy checks, but does not examine the actual read structure in `reads.fastq.gz` or `trimmed.fastq` to confirm where UMIs are located, their length, or their diversity. The claim that "UMI sequences are present in read headers after trimming" appears to reference provided summary information rather than independent verification.
+
+4. **Coordinate convention stated but not validated**: The report defines a 1-based coordinate system but does not verify this against the reference.fa structure or demonstrate that the toy_gene transcript has defined CDS boundaries. The periodicity analysis is acknowledged as limited but no attempt is made to extract frame information from the reference.
+
+5. **Incident diagnoses rely on pattern-matching rather than differential diagnosis**: While the proposed root causes are reasonable, alternative explanations are not systematically ruled out. For example, Incident A could involve degraded input RNA (not just carryover contamination), but this is dismissed without explicit reasoning. Incident C's "under-digestion" conclusion does not consider whether the protocol specifies digestion conditions that could be audited.
+
+6. **Recommendations lack protocol-specific implementation details**: Fixes such as "add explicit cleanup hard requirements" or "tighten digestion requirements" are generic. Without knowing what the current protocol.md states, it is unclear whether these are additions, modifications, or already present but poorly followed.
+
+7. **No quantitative thresholds provided for QC gates**: The report proposes QC checkpoints (e.g., "UMI complexity must pass") but does not define pass/fail criteria. What constitutes "implausibly low" UMI diversity? What A260/230 threshold triggers re-cleanup? These omissions reduce actionability.
+
+8. **Assumption that all incidents are independent**: The cross-incident validation section treats issues separately, but some incidents may share upstream causes (e.g., Incidents A and B both involve cleanup issues). A more integrated root-cause analysis could identify whether a single protocol defect underlies multiple failure modes.
+
+## Final Short Summary to Attach
+
+The report provides competent diagnostic reasoning for all five incidents, identifying plausible root causes consistent with standard Ribo-seq failure modes. However, it fails to deliver the required computational outputs (CSV files, plots, HTML report) for section 1-6, instead providing only a processing plan. The analysis does not directly engage with the provided artifacts (protocol.md text, actual read sequences, reference structure), relying on generic troubleshooting frameworks rather than artifact-specific evidence. Recommendations are reasonable but lack specificity regarding the actual protocol content and quantitative QC thresholds. The report would benefit from explicit verification of claims against the provided data and protocol text.

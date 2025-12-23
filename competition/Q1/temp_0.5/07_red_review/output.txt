@@ -1,0 +1,25 @@
+## Reliability Score
+- Score: 72
+- Rationale: The report demonstrates strong conceptual understanding of Ribo-seq troubleshooting and provides well-reasoned diagnoses for each incident. However, critical weaknesses include: (1) the analysis pipeline cannot be validated without access to the actual data files, making deliverables unverifiable; (2) several diagnoses rely on assumptions about protocol.md content that are never explicitly confirmed; (3) the UMI/adapter structure parameters are left as placeholders rather than derived from the provided protocol; (4) quantitative QC thresholds are proposed without calibration data or justification for specific values.
+
+## Critiques / Limitations / Risks (in priority order)
+
+1. **Unverifiable deliverables for Problem 1-6**: The pipeline script is provided but cannot be executed or validated within this context. The required CSV files, histogram plot, and HTML report are described procedurally but not actually generated. This fundamentally fails to satisfy the "expected deliverables" requirement, which asks for actual output files rather than code that would produce them.
+
+2. **Protocol.md content never explicitly referenced**: Throughout all incident analyses, the report assumes certain protocol characteristics (e.g., ligation chemistry type, UMI structure, adapter sequences) without quoting or directly referencing the provided protocol.md artifact. This creates circular reasoning where diagnoses depend on unverified assumptions about what the protocol specifies.
+
+3. **UMI extraction parameters left as placeholders**: In the pipeline script, critical parameters (`UMI_LENGTH`, `UMI_LOCATION`, `LINKER_SEQ`, `ADAPTER_3P_SEQ`) are marked as "FILL_FROM_PROTOCOL" but never actually filled. This makes the entire 1-6 analysis non-reproducible and suggests the author did not examine the protocol artifact.
+
+4. **Arbitrary QC threshold values**: Thresholds like "A260/230 < 1.5," "top UMI fraction > 10-20%," and "≥80% material in footprint window" are stated without empirical justification or reference to established literature. While the report acknowledges these need calibration, presenting specific numbers without basis risks inappropriate adoption.
+
+5. **Incident C alternative hypothesis insufficiently explored**: The report mentions "incorrect computational P-site assignment" as an alternative but does not adequately address whether the provided reads.fastq.gz might contain reads of appropriate length that simply require different offset parameters. The length-stratified analysis is proposed but not executed.
+
+6. **Missing direct examination of reads.fastq.gz**: For Incidents D and E, the report proposes FASTQ-based diagnostic checks (UMI histogram, linker prefix frequency) but does not perform these analyses on the provided data. This is a missed opportunity to provide concrete evidence rather than hypothetical diagnoses.
+
+7. **Periodicity analysis conditional on unavailable CDS annotation**: The report correctly notes that periodicity requires CDS coordinates but then proposes ORF inference without confirming whether annotation was provided. The "optional extension" framing weakens what should be a core deliverable for Ribo-seq QC.
+
+8. **Over-reliance on "no new wet-lab" constraint interpretation**: While the constraint is acknowledged, some proposed "next steps" (e.g., "operator-stratified failure mapping," "audit run notes") assume access to metadata not provided in the problem artifacts, blurring the line between what can actually be confirmed versus what would require additional information.
+
+## Final Short Summary to Attach
+
+This report provides a comprehensive conceptual framework for Ribo-seq troubleshooting with well-structured diagnoses and reasonable mechanistic explanations for each incident. However, the core deliverables for Problem 1-6 are not actually produced—only a pipeline template is provided with unfilled parameters. Critical assumptions about protocol.md content are never verified against the actual artifact, and proposed QC thresholds lack empirical grounding. The analysis would benefit substantially from direct examination of the provided FASTQ and reference files to generate concrete evidence supporting the diagnoses, rather than relying on hypothetical conditional logic.

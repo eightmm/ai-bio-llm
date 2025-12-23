@@ -172,19 +172,31 @@ def progress_step(label: str):
         status(f"{label} done ({elapsed:.1f}s)")
 
 
-def run_pipeline(file_path, *, verbose: bool = False):
+def run_pipeline(file_path, *, verbose: bool = False, temperature: float = None, run_number: int = None):
     file_name = os.path.basename(file_path)
-    token = _current_problem.set(os.path.splitext(file_name)[0])
+    temp_suffix = f" (temp={temperature})" if temperature is not None else ""
+    run_suffix = f" run{run_number}" if run_number is not None else ""
+    token = _current_problem.set(os.path.splitext(file_name)[0] + temp_suffix + run_suffix)
     pipeline_start = _time.time()
-    status(f"\n[{file_name}] Pipeline start")
+    status(f"\n[{file_name}] Pipeline start{temp_suffix}{run_suffix}")
 
     try:
         # Determine Problem ID from filename (e.g., problem_1.txt -> problem_1)
         problem_id = os.path.splitext(file_name)[0]
-        
-        # Base Output Directory is the same as the problem file's directory
-        # structure: problems/problem_1/01_search/ ...
-        problem_output_dir = Path(file_path).parent
+
+        # Base Output Directory
+        # If temperature is specified, create subdirectory like temp_0.5/ or temp_0.5_run1/
+        base_dir = Path(file_path).parent
+        if temperature is not None:
+            if run_number is not None:
+                problem_output_dir = base_dir / f"temp_{temperature}_run{run_number}"
+            else:
+                problem_output_dir = base_dir / f"temp_{temperature}"
+        else:
+            if run_number is not None:
+                problem_output_dir = base_dir / f"run{run_number}"
+            else:
+                problem_output_dir = base_dir
 
         # Check if final answer already exists - skip entire pipeline if so
         answer_id = problem_id
@@ -213,7 +225,10 @@ def run_pipeline(file_path, *, verbose: bool = False):
         else:
             with progress_step("[1/7] Brain: analyzing question"):
                 with suppress_stdout(not verbose):
-                    brain_agent = BrainAgent(system_prompt_path=TEMPLATE_PATHS["brain"]["system"])
+                    brain_agent = BrainAgent(
+                        system_prompt_path=TEMPLATE_PATHS["brain"]["system"],
+                        temperature=temperature,
+                    )
                     brain_result = brain_agent.analyze_question(content)
             
             # Save Brain Result (Global context)
@@ -244,7 +259,7 @@ def run_pipeline(file_path, *, verbose: bool = False):
             else:
                 if search_agent is None:
                     with suppress_stdout(not verbose):
-                        search_agent = SearchAgent()
+                        search_agent = SearchAgent(temperature=temperature)
                 with progress_step("[2/7] SearchAgent: generating literature report"):
                     with suppress_stdout(not verbose):
                         search_agent.run_for_problem(
@@ -277,7 +292,7 @@ def run_pipeline(file_path, *, verbose: bool = False):
         else:
             if data_analyst_agent is None:
                 with suppress_stdout(not verbose):
-                    data_analyst_agent = DataAnalystAgent()
+                    data_analyst_agent = DataAnalystAgent(temperature=temperature)
             with progress_step("[3/7] DataAnalystAgent: analyzing referenced data files"):
                 try:
                     with suppress_stdout(not verbose):
@@ -382,7 +397,7 @@ def run_pipeline(file_path, *, verbose: bool = False):
             else:
                 if blue_agent is None:
                     with suppress_stdout(not verbose):
-                        blue_agent = BlueAgent()
+                        blue_agent = BlueAgent(temperature=temperature)
                 with progress_step("[4/7] BlueAgent: writing initial draft"):
                     with suppress_stdout(not verbose):
                         blue_agent.run_for_problem(
@@ -445,7 +460,7 @@ def run_pipeline(file_path, *, verbose: bool = False):
             else:
                 if bluex_agent is None:
                     with suppress_stdout(not verbose):
-                        bluex_agent = BlueXAgent()
+                        bluex_agent = BlueXAgent(temperature=temperature)
                 with progress_step("[6/7] BlueXAgent: revising using red feedback"):
                     with suppress_stdout(not verbose):
                         bluex_agent.run_for_problem(
@@ -504,7 +519,7 @@ def run_pipeline(file_path, *, verbose: bool = False):
         else:
             if answer_agent is None:
                 with suppress_stdout(not verbose):
-                    answer_agent = AnswerAgent()
+                    answer_agent = AnswerAgent(temperature=temperature)
             with progress_step("[8/8] AnswerAgent: composing final deliverable"):
                 with suppress_stdout(not verbose):
                     answer_agent.run_for_problem(
@@ -568,6 +583,22 @@ def main():
         type=str,
         default="problems",
         help="Directory containing problem files (default: 'problems').",
+    )
+    parser.add_argument(
+        "--temperature",
+        type=str,
+        default=None,
+        help=(
+            "Temperature(s) to test. Comma-separated for multiple values "
+            "(e.g., '0.0,0.5,1.0'). Results are saved in separate directories "
+            "(e.g., temp_0.5/). Red Agent uses its own fixed temperature."
+        ),
+    )
+    parser.add_argument(
+        "--runs",
+        type=int,
+        default=1,
+        help="Number of runs per temperature (default: 1). Results saved as temp_0.5_run1/, temp_0.5_run2/, etc.",
     )
     args = parser.parse_args()
     
@@ -665,38 +696,64 @@ def main():
             return
 
     status(f"Found {len(txt_files)} files to process: {[os.path.basename(f) for f in txt_files]}")
-    
-    # Process problems (parallel by default when there are multiple files)
-    if len(txt_files) <= 1:
-        for file_path in txt_files:
-            run_pipeline(file_path, verbose=args.verbose)
-        return
 
-    cpu_count = os.cpu_count() or 1
-    if len(txt_files) > cpu_count:
-        max_workers = max(1, cpu_count // 2)
+    # Parse temperature(s) from CLI argument
+    if args.temperature:
+        temperatures = [float(t.strip()) for t in args.temperature.split(",")]
+        status(f"Temperature(s) to test: {temperatures}")
     else:
-        max_workers = len(txt_files)
+        temperatures = [None]  # None means use default behavior
 
-    status(f"Running in parallel: jobs={max_workers}")
+    # Process each temperature and run combination
+    total_failures = 0
+    num_runs = args.runs
 
-    failures = 0
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_path = {
-            executor.submit(run_pipeline, file_path, verbose=args.verbose): file_path
-            for file_path in txt_files
-        }
+    for temp in temperatures:
+        for run_num in range(1, num_runs + 1):
+            # Determine run_number to pass (None if single run without --runs > 1)
+            run_number = run_num if num_runs > 1 else None
 
-        for future in as_completed(future_to_path):
-            file_path = future_to_path[future]
-            try:
-                future.result()
-            except Exception as e:
-                failures += 1
-                status(f"[Error] Unhandled exception for {os.path.basename(file_path)}: {type(e).__name__}: {e}")
+            run_label = f" run {run_num}/{num_runs}" if num_runs > 1 else ""
+            if temp is not None:
+                status(f"\n=== Running with temperature={temp}{run_label} ===")
+            elif num_runs > 1:
+                status(f"\n=== Running{run_label} ===")
 
-    if failures:
-        status(f"Completed with failures: {failures}/{len(txt_files)}")
+            # Process problems (parallel by default when there are multiple files)
+            if len(txt_files) <= 1:
+                for file_path in txt_files:
+                    run_pipeline(file_path, verbose=args.verbose, temperature=temp, run_number=run_number)
+                continue
+
+            cpu_count = os.cpu_count() or 1
+            if len(txt_files) > cpu_count:
+                max_workers = max(1, cpu_count // 2)
+            else:
+                max_workers = len(txt_files)
+
+            status(f"Running in parallel: jobs={max_workers}")
+
+            failures = 0
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_to_path = {
+                    executor.submit(run_pipeline, file_path, verbose=args.verbose, temperature=temp, run_number=run_number): file_path
+                    for file_path in txt_files
+                }
+
+                for future in as_completed(future_to_path):
+                    file_path = future_to_path[future]
+                    try:
+                        future.result()
+                    except Exception as e:
+                        failures += 1
+                        status(f"[Error] Unhandled exception for {os.path.basename(file_path)}: {type(e).__name__}: {e}")
+
+            if failures:
+                status(f"Completed with failures: {failures}/{len(txt_files)}")
+            total_failures += failures
+
+    if total_failures:
+        status(f"Total failures across all runs: {total_failures}")
 
 if __name__ == "__main__":
     main()

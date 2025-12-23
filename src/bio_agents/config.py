@@ -27,6 +27,8 @@ class Config:
     
     # Brain Agent: Decomposes problems
     # Defaulting to a high-reasoning model
+    MODEL_DB = "anthropic/claude-3.5-sonnet"
+
     MODEL_BRAIN = os.getenv("MODEL_BRAIN", "openai/gpt-5.2-pro")
     
     # Search Agent: Searches and synthesizes literature
@@ -47,6 +49,13 @@ class Config:
 
     # Data Analyst Agent (3-stage LLM pipeline)
     # Defaults fall back to MODEL_BRAIN unless overridden.
-    MODEL_DATA_PLANNER = os.getenv("MODEL_DATA_PLANNER", MODEL_BRAIN)
-    MODEL_DATA_EXECUTOR = os.getenv("MODEL_DATA_EXECUTOR", MODEL_BRAIN)
-    MODEL_DATA_SUMMARIZER = os.getenv("MODEL_DATA_SUMMARIZER", MODEL_BRAIN)
+    MODEL_DATA_PLANNER = os.getenv("MODEL_DATA_PLANNER", MODEL_DB)
+    MODEL_DATA_EXECUTOR = os.getenv("MODEL_DATA_EXECUTOR", MODEL_DB)
+    MODEL_DATA_SUMMARIZER = os.getenv("MODEL_DATA_SUMMARIZER", MODEL_DB)
+
+    # Temperature Settings
+    # Default temperature for general agents (used when --temperature is not specified)
+    DEFAULT_TEMPERATURE = float(os.getenv("DEFAULT_TEMPERATURE", "0.7"))
+
+    # Red Agent specific temperature (independent from other agents)
+    RED_TEMPERATURE = float(os.getenv("RED_TEMPERATURE", "0.3"))

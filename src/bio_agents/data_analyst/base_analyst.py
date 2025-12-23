@@ -13,21 +13,30 @@ class BaseAnalyst:
     Base class for Data Analyst LLM modules.
     Handles common LLM API interactions and prompt loading.
     """
-    def __init__(self, model: str = Config.MODEL_BRAIN, timeout: int = Config.TIMEOUT):
+    def __init__(
+        self,
+        model: str = Config.MODEL_BRAIN,
+        timeout: int = Config.TIMEOUT,
+        temperature: float = None,
+    ):
         self.model = model
         self.timeout = timeout
-        
-    def _call_llm(self, messages: list[Dict[str, str]], temperature: float = 0.2) -> str:
+        self.default_temperature = temperature if temperature is not None else Config.DEFAULT_TEMPERATURE
+
+    def _call_llm(self, messages: list[Dict[str, str]], temperature: float = None) -> str:
         """
         Call OpenRouter LLM API with standard error handling.
-        
+
         Args:
             messages: List of message dicts [{'role': 'system', 'content': '...'}, ...]
-            temperature: Sampling temperature
-            
+            temperature: Sampling temperature (uses self.default_temperature if not specified)
+
         Returns:
             LLM response content string
         """
+        if temperature is None:
+            temperature = self.default_temperature
+
         url = f"{Config.BASE_URL}/chat/completions"
 
         payload = {
